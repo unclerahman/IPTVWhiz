@@ -1,0 +1,36 @@
+<!-- Android TV launcher banner (320x180dp). TODO: replace with a PNG that includes the app name text. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#0E1117"
+        android:pathData="M0,0 H320 V180 H0 Z" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M0,0 H180 L120,180 H0 Z" />
+    <group
+        android:translateX="6"
+        android:translateY="36">
+        <path
+            android:pathData="M36,36 H72 A6,6 0 0 1 78,42 V64 A6,6 0 0 1 72,70 H36 A6,6 0 0 1 30,64 V42 A6,6 0 0 1 36,36 Z"
+            android:strokeWidth="5"
+            android:strokeColor="#FFFFFF" />
+        <path
+            android:pathData="M44,78 H64"
+            android:strokeWidth="5"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round" />
+        <path
+            android:fillColor="#22D3EE"
+            android:pathData="M49,45 L62,53 L49,61 Z" />
+    </group>
+    <!-- Accent stripes -->
+    <path
+        android:fillColor="#22D3EE"
+        android:pathData="M190,70 H290 V78 H186 Z" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M180,94 H260 V102 H176 Z" />
+</vector>

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- TV screen outline -->
+    <path
+        android:pathData="M36,36 H72 A6,6 0 0 1 78,42 V64 A6,6 0 0 1 72,70 H36 A6,6 0 0 1 30,64 V42 A6,6 0 0 1 36,36 Z"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF" />
+    <!-- Stand -->
+    <path
+        android:pathData="M44,78 H64"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Play mark -->
+    <path
+        android:fillColor="#22D3EE"
+        android:pathData="M49,45 L62,53 L49,61 Z" />
+</vector>

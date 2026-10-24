@@ -1,0 +1,131 @@
+<resources>
+    <string name="app_name">IPTV Whiz</string>
+
+    <!-- Navigation -->
+    <string name="nav_live">Live TV</string>
+    <string name="nav_guide">Guide</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_settings">Settings</string>
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Welcome -->
+    <string name="welcome_title">Welcome to IPTV Whiz</string>
+    <string name="welcome_subtitle">Add your IPTV provider to get started. IPTV Whiz does not provide any channels or content.</string>
+    <string name="add_playlist_title">Add a playlist</string>
+    <string name="add_playlist_subtitle">Choose how your provider gave you access.</string>
+    <string name="add_m3u_title">M3U link</string>
+    <string name="add_m3u_desc">Paste a playlist URL from your provider</string>
+    <string name="add_xtream_title">Xtream Codes login</string>
+    <string name="add_xtream_desc">Server, username and password</string>
+    <string name="add_phone_title">Set up from phone</string>
+    <string name="add_phone_desc">Scan a QR code and type on your phone</string>
+    <string name="explore_first">Explore first</string>
+    <string name="coming_soon">Coming in a future update</string>
+
+    <!-- Add playlist forms -->
+    <string name="field_playlist_name">Playlist name</string>
+    <string name="field_playlist_name_hint">Optional. We\'ll name it for you.</string>
+    <string name="field_m3u_url">Playlist link (M3U)</string>
+    <string name="field_m3u_url_hint">http://… or https://…</string>
+    <string name="field_epg_url">TV guide link (EPG)</string>
+    <string name="field_epg_url_hint">Optional. Often included in the playlist.</string>
+    <string name="field_server">Server address</string>
+    <string name="field_server_hint">e.g. http://example.com:8080</string>
+    <string name="field_username">Username</string>
+    <string name="field_password">Password</string>
+    <string name="field_empty">Not set</string>
+    <string name="field_required">Required</string>
+    <string name="field_invalid_url">Enter a full link starting with http:// or https://</string>
+    <string name="add_playlist_button">Add playlist</string>
+    <string name="choose_file">Choose a file instead</string>
+    <string name="no_file_picker">This device has no file browser. Use a link, or set up from your phone.</string>
+    <string name="import_running">Loading your playlist…</string>
+    <string name="import_found">%1$s channels found</string>
+    <string name="import_done">Added %1$s channels</string>
+    <string name="import_failed_title">Couldn\'t add this playlist</string>
+    <string name="try_again">Try again</string>
+
+    <!-- Import errors -->
+    <string name="import_error_no_connection">Couldn\'t reach the server. Check the link and your internet connection.</string>
+    <string name="import_error_timeout">The server took too long to answer. Try again in a moment.</string>
+    <string name="import_error_ssl">Couldn\'t make a secure connection. If the link starts with https://, try http:// instead.</string>
+    <string name="import_error_access_denied">The provider refused access. Check your link or login, or ask your provider.</string>
+    <string name="import_error_not_found">Nothing was found at this link. Check that it\'s typed correctly.</string>
+    <string name="import_error_http">The server returned an error (code %1$d). Try again later.</string>
+    <string name="import_error_not_playlist">This link didn\'t return a playlist. Check that you copied the M3U link.</string>
+    <string name="import_error_empty">The playlist is empty.</string>
+    <string name="import_error_wrong_login">Wrong server, username or password.</string>
+    <string name="import_error_account_inactive">Your provider account isn\'t active (status: %1$s).</string>
+    <string name="import_error_file">Couldn\'t open that file.</string>
+    <string name="import_error_invalid_address">That address doesn\'t look right. Check it and try again.</string>
+    <string name="import_error_unknown">Something went wrong while loading the playlist.</string>
+
+    <!-- Live -->
+    <string name="all_channels">All channels</string>
+    <string name="empty_live_title">No channels yet</string>
+    <string name="empty_live_message">Add a provider to see your channels here.</string>
+    <string name="empty_group">No channels in this group.</string>
+    <string name="empty_guide_title">TV guide is coming</string>
+    <string name="empty_guide_message">The guide will show what\'s on once EPG support arrives.</string>
+    <string name="empty_favorites_title">No favorites yet</string>
+    <string name="empty_favorites_message">Favorites arrive with channel management.</string>
+    <string name="empty_search_title">Search channels</string>
+    <string name="empty_search_message">Search is coming in a future update.</string>
+    <string name="add_provider">Add provider</string>
+
+    <!-- Player -->
+    <string name="playback_offline">This channel is offline right now.</string>
+    <string name="playback_blocked">This channel isn\'t available. It may be blocked in your country.</string>
+    <string name="playback_no_connection">Couldn\'t connect. Check your internet connection.</string>
+    <string name="playback_unsupported">This channel\'s format isn\'t supported on this device.</string>
+    <string name="playback_other">Couldn\'t play this channel.</string>
+    <string name="next_channel">Next channel</string>
+    <string name="previous_channel">Previous channel</string>
+    <string name="channel_list">Channel list</string>
+    <string name="channel_position">%1$d of %2$d</string>
+    <string name="no_channel_number">No channel %1$d in this list</string>
+    <string name="player_hint_tv">OK: channels · ▲▼: switch · Back: exit</string>
+
+    <!-- Playlists -->
+    <string name="playlists_title">Playlists</string>
+    <string name="playlist_active">Watching</string>
+    <string name="playlist_use">Watch this playlist</string>
+    <string name="playlist_refresh">Refresh now</string>
+    <string name="playlist_delete">Delete</string>
+    <string name="playlist_delete_confirm_title">Delete %1$s?</string>
+    <string name="playlist_delete_confirm_message">Its channels are removed from this device. Your provider account isn\'t affected.</string>
+    <string name="playlist_refreshing">Refreshing…</string>
+    <string name="playlist_refreshed">%1$s is up to date</string>
+    <string name="playlist_refresh_failed">Couldn\'t refresh %1$s: %2$s</string>
+    <string name="playlist_deleted">Deleted %1$s</string>
+    <string name="playlist_type_m3u">M3U link</string>
+    <string name="playlist_type_file">M3U file</string>
+    <string name="playlist_type_xtream">Xtream</string>
+    <string name="just_now">just now</string>
+    <string name="playlist_summary">%1$s · %2$s · Updated %3$s</string>
+    <string name="playlists_empty">No playlists yet.</string>
+    <plurals name="channel_count">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
+
+    <!-- Settings -->
+    <string name="settings_playlists">Playlists</string>
+    <string name="settings_playlists_desc">Add, refresh and remove providers</string>
+    <string name="settings_epg">TV guide (EPG)</string>
+    <string name="settings_epg_desc">Guide sources and update schedule</string>
+    <string name="settings_manage">Manage channels</string>
+    <string name="settings_manage_desc">Hide, rename, sort and group channels</string>
+    <string name="settings_player">Player</string>
+    <string name="settings_player_desc">Buffer, decoder and aspect ratio</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_desc">Theme and text size</string>
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_desc">Move your edits between devices with a file</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_desc">Version %1$s</string>
+
+    <string name="press_back_again">Press Back again to exit</string>
+</resources>
