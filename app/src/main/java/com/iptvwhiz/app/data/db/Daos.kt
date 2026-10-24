@@ -15,6 +15,9 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE id = :id")
     suspend fun get(id: Long): PlaylistEntity?
 
+    @Query("SELECT * FROM playlists ORDER BY createdAt")
+    suspend fun getAll(): List<PlaylistEntity>
+
     @Insert
     suspend fun insert(playlist: PlaylistEntity): Long
 
@@ -45,6 +48,9 @@ interface OverlayDao {
 
     @Query("SELECT * FROM channel_overrides WHERE playlistId = :playlistId AND stableKey = :stableKey")
     suspend fun override(playlistId: Long, stableKey: String): ChannelOverride?
+
+    @Query("SELECT * FROM channel_overrides WHERE playlistId = :playlistId")
+    suspend fun allOverrides(playlistId: Long): List<ChannelOverride>
 
     @Query("SELECT * FROM channel_overrides WHERE playlistId = :playlistId AND stableKey IN (:stableKeys)")
     suspend fun overrides(playlistId: Long, stableKeys: List<String>): List<ChannelOverride>

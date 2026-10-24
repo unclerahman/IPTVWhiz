@@ -30,7 +30,7 @@ val settingsEntries = listOf(
     SettingsEntry(R.string.settings_manage, R.string.settings_manage_desc, Routes.MANAGE),
     SettingsEntry(R.string.settings_player, R.string.settings_player_desc),
     SettingsEntry(R.string.settings_appearance, R.string.settings_appearance_desc),
-    SettingsEntry(R.string.settings_backup, R.string.settings_backup_desc),
+    SettingsEntry(R.string.settings_backup, R.string.settings_backup_desc, Routes.BACKUP),
     SettingsEntry(R.string.settings_about, R.string.settings_about_desc),
 )
 

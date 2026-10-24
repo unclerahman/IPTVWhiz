@@ -42,6 +42,7 @@ fun MobileApp(hasPlaylist: Boolean) {
                 composable(Routes.PLAYLISTS) {
                     MobilePlaylistsScreen(onAddPlaylist = { nav.navigate(Routes.WELCOME) }, onBack = back)
                 }
+                composable(Routes.BACKUP) { MobileBackupScreen(onBack = back) }
                 composable(Routes.MANAGE) {
                     MobileManageScreen(onOpenGroup = { nav.navigate(Routes.manageGroup(it)) }, onBack = back)
                 }

@@ -11,3 +11,4 @@
 .cxx/
 *.keystore
 keystore.properties
+/dist/

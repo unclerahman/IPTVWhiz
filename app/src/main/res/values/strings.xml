@@ -163,5 +163,38 @@
     <string name="label_favorite">Favorite</string>
     <string name="more_options">More options</string>
 
+    <!-- Backup -->
+    <string name="backup_title">Backup &amp; restore</string>
+    <string name="backup_intro">Save your playlists and edits (favorites, hidden channels, names, groups and order) to a file. Restoring merges it in: for each channel and group, the newest change wins.</string>
+    <string name="backup_include_logins">Include provider logins</string>
+    <string name="backup_include_logins_desc">Needed to add your playlists on another device. Keep the file private: anyone who has it can use your account.</string>
+    <string name="backup_save">Save backup</string>
+    <string name="backup_restore">Restore from backup</string>
+    <string name="backup_saving">Saving backup…</string>
+    <string name="backup_restoring">Restoring…</string>
+    <string name="backup_adding">Adding %1$s…</string>
+    <string name="backup_saved">Backup saved: %1$s.</string>
+    <string name="backup_saved_to">Saved to %1$s</string>
+    <string name="backup_restored_title">Backup restored</string>
+    <string name="backup_merged">Edits merged into %1$s.</string>
+    <string name="backup_added">%1$s added.</string>
+    <string name="backup_skipped">%1$s not on this device were skipped. Restore a backup that includes logins to add them.</string>
+    <string name="backup_failed_count">%1$s couldn\'t be downloaded.</string>
+    <string name="backup_changes">%1$d changes applied.</string>
+    <string name="backup_no_changes">Everything was already up to date.</string>
+    <string name="backup_error_title">Backup problem</string>
+    <string name="backup_error_not_backup">That file isn\'t an IPTV Whiz backup.</string>
+    <string name="backup_error_newer">This backup was made by a newer version of IPTV Whiz. Update the app first.</string>
+    <string name="backup_error_unreadable">Couldn\'t read or write the file.</string>
+    <string name="backup_choose">Choose a backup</string>
+    <string name="backup_none_found">No backups found. Copy a backup file over USB into Android/data/com.iptvwhiz.app/files/backups on this device, then try again.</string>
+    <string name="label_on">On</string>
+    <string name="label_off">Off</string>
+    <string name="ok">OK</string>
+    <plurals name="playlist_count">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="other">%1$d playlists</item>
+    </plurals>
+
     <string name="press_back_again">Press Back again to exit</string>
 </resources>

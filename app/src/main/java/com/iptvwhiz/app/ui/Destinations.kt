@@ -19,6 +19,7 @@ object Routes {
     const val ADD_M3U = "add/m3u"
     const val ADD_XTREAM = "add/xtream"
     const val PLAYLISTS = "playlists"
+    const val BACKUP = "backup"
 
     const val ARG_PLAYLIST = "playlistId"
     const val ARG_GROUP = "group"

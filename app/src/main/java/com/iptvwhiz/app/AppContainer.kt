@@ -4,6 +4,7 @@ import android.content.Context
 import com.iptvwhiz.app.data.AppPrefs
 import com.iptvwhiz.app.data.OverlayRepository
 import com.iptvwhiz.app.data.PlaylistRepository
+import com.iptvwhiz.app.data.backup.BackupRepository
 import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.xtream.XtreamClient
 import kotlinx.serialization.json.Json
@@ -38,6 +39,7 @@ class AppContainer(context: Context) {
     val xtream = XtreamClient(http, json)
     val playlists = PlaylistRepository(context, db, http, xtream, prefs)
     val overlay = OverlayRepository(db)
+    val backups = BackupRepository(db, playlists)
 
     companion object {
         /**

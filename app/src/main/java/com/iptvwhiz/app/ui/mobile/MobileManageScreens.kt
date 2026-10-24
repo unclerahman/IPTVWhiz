@@ -76,7 +76,7 @@ fun MobileManageScreen(onOpenGroup: (String) -> Unit, onBack: () -> Unit) {
     val reorder = rememberDragReorderState(listState)
 
     Scaffold(
-        topBar = { ManageTopBar(stringResource(R.string.manage_title), onBack) },
+        topBar = { BackTopBar(stringResource(R.string.manage_title), onBack) },
         floatingActionButton = {
             if (playlist != null) {
                 ExtendedFloatingActionButton(
@@ -214,7 +214,7 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
     val reorder = rememberDragReorderState(listState)
     val group = groups.firstOrNull { it.key == selectedGroup }
 
-    Scaffold(topBar = { ManageTopBar(group?.displayName.orEmpty(), onBack) }) { padding ->
+    Scaffold(topBar = { BackTopBar(group?.displayName.orEmpty(), onBack) }) { padding ->
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding)) {
             items(local, key = { it.stableKey }) { channel ->
                 ListItem(
@@ -277,7 +277,7 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ManageTopBar(title: String, onBack: () -> Unit) {
+internal fun BackTopBar(title: String, onBack: () -> Unit) {
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {

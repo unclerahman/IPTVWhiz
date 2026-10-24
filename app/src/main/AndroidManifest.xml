@@ -3,6 +3,18 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- To tell a real file picker from Android TV's do-nothing stub (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CREATE_DOCUMENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <!-- One APK for phones and Android TV: neither touch nor leanback is required. -->
     <uses-feature
         android:name="android.hardware.touchscreen"

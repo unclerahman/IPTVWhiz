@@ -28,6 +28,7 @@ fun rememberPlaylistFilePicker(onPicked: (Uri) -> Unit): () -> Unit {
     }
     return {
         try {
+            if (!context.hasDocumentPicker()) throw ActivityNotFoundException()
             // M3U files arrive with many different (or no) MIME types, so allow any file.
             launcher.launch(arrayOf("*/*"))
         } catch (e: ActivityNotFoundException) {
