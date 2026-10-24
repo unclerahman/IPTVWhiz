@@ -54,9 +54,3 @@ data class ChannelEntity(
     val userAgent: String? = null,
     val referrer: String? = null,
 )
-
-data class GroupInfo(
-    val name: String,
-    val channelCount: Int,
-    val firstNumber: Int,
-)

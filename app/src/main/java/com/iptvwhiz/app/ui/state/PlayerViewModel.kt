@@ -4,7 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptvwhiz.app.AppContainer
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.OrganizedPlaylist
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.player.LivePlayer
 import com.iptvwhiz.app.ui.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,28 +21,34 @@ import kotlinx.coroutines.launch
  * Lives in a ViewModel so the stream survives rotation on phones.
  */
 class PlayerViewModel(container: AppContainer, savedState: SavedStateHandle) : ViewModel() {
-    private val repo = container.playlists
+    private val overlay = container.overlay
     private val prefs = container.prefs
 
     private val playlistId: Long = checkNotNull(savedState[Routes.ARG_PLAYLIST])
-    /** null = all channels. */
-    val group: String? = savedState[Routes.ARG_GROUP]
+    /** A group key, or [OrganizedPlaylist.ALL] / [OrganizedPlaylist.FAVORITES]. */
+    val group: String = savedState[Routes.ARG_GROUP] ?: OrganizedPlaylist.ALL
     private val startKey: String? = savedState[Routes.ARG_KEY]
 
     val livePlayer = LivePlayer(container.appContext, container.http)
 
-    private val _channels = MutableStateFlow<List<ChannelEntity>>(emptyList())
-    val channels: StateFlow<List<ChannelEntity>> = _channels.asStateFlow()
+    private val _channels = MutableStateFlow<List<Channel>>(emptyList())
+    val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
+
+    /** The group's name as the user named it; null for "All channels" and "Favorites". */
+    private val _groupName = MutableStateFlow<String?>(null)
+    val groupName: StateFlow<String?> = _groupName.asStateFlow()
 
     private val _index = MutableStateFlow(-1)
     val index: StateFlow<Int> = _index.asStateFlow()
 
-    val current: StateFlow<ChannelEntity?> = combine(_channels, _index) { list, i -> list.getOrNull(i) }
+    val current: StateFlow<Channel?> = combine(_channels, _index) { list, i -> list.getOrNull(i) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {
         viewModelScope.launch {
-            val list = repo.channels(playlistId, group).first()
+            val organized = overlay.organizedNow(playlistId)
+            val list = organized.browse(group)
+            _groupName.value = organized.groups.firstOrNull { it.key == group }?.displayName
             _channels.value = list
             playAt(list.indexOfFirst { it.stableKey == startKey }.coerceAtLeast(0))
         }

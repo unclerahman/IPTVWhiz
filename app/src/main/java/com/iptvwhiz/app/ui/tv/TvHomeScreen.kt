@@ -35,7 +35,7 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.BuildConfig
 import com.iptvwhiz.app.R
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.TopLevel
 import com.iptvwhiz.app.ui.common.AdSlot
 import com.iptvwhiz.app.ui.common.BackToExit
@@ -46,7 +46,7 @@ import com.iptvwhiz.app.ui.theme.TvSafeArea
 
 @Composable
 fun TvHomeScreen(
-    onPlay: (ChannelEntity, group: String?) -> Unit,
+    onPlay: (Channel, group: String) -> Unit,
     onAddPlaylist: () -> Unit,
     onOpenRoute: (String) -> Unit,
 ) {
@@ -83,6 +83,7 @@ fun TvHomeScreen(
         ) {
             when (selected) {
                 TopLevel.Live -> TvLiveContent(onPlay = onPlay, onAddPlaylist = onAddPlaylist)
+                TopLevel.Favorites -> TvFavoritesContent(onPlay = onPlay)
                 TopLevel.Settings -> TvSettings(onOpenRoute)
                 else -> selected.emptyState()?.let { TvEmptyState(it) }
             }

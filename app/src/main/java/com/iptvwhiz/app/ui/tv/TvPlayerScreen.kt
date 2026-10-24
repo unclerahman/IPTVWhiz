@@ -1,5 +1,6 @@
 package com.iptvwhiz.app.ui.tv
 
+import com.iptvwhiz.app.ui.common.groupLabel
 import android.view.KeyEvent as AndroidKeyEvent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -60,7 +61,7 @@ import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
 import com.iptvwhiz.app.ui.common.playbackProblemMessage
@@ -85,6 +86,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     val index by vm.index.collectAsStateWithLifecycle()
     val current by vm.current.collectAsStateWithLifecycle()
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
+    val groupName by vm.groupName.collectAsStateWithLifecycle()
 
     var listVisible by remember { mutableStateOf(false) }
     var bannerToken by remember { mutableIntStateOf(0) }
@@ -170,7 +172,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            current?.let { InfoBanner(it, position = index + 1, total = channels.size, group = vm.group) }
+            current?.let { InfoBanner(it, position = index + 1, total = channels.size, group = groupName) }
         }
 
         AnimatedVisibility(
@@ -179,7 +181,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             exit = slideOutHorizontally { -it } + fadeOut(),
         ) {
             ChannelListOverlay(
-                title = vm.group ?: stringResource(R.string.all_channels),
+                title = groupLabel(vm.group, groupName),
                 channels = channels,
                 currentIndex = index,
                 onSelect = { i ->
@@ -205,7 +207,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoBanner(channel: ChannelEntity, position: Int, total: Int, group: String?) {
+private fun InfoBanner(channel: Channel, position: Int, total: Int, group: String?) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -248,7 +250,7 @@ private fun InfoBanner(channel: ChannelEntity, position: Int, total: Int, group:
 @Composable
 private fun ChannelListOverlay(
     title: String,
-    channels: List<ChannelEntity>,
+    channels: List<Channel>,
     currentIndex: Int,
     onSelect: (Int) -> Unit,
 ) {

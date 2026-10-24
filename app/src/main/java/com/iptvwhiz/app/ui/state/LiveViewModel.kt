@@ -3,9 +3,11 @@ package com.iptvwhiz.app.ui.state
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptvwhiz.app.AppContainer
-import com.iptvwhiz.app.data.db.ChannelEntity
-import com.iptvwhiz.app.data.db.GroupInfo
+import com.iptvwhiz.app.data.ChannelGroup
+import com.iptvwhiz.app.data.OrganizedPlaylist
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.PlaylistEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,12 +17,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
-/** Browsing the active playlist: its groups and the channels of the selected group. */
+/** Browsing the active playlist: favorites, all channels, and the user's visible groups. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiveViewModel(container: AppContainer) : ViewModel() {
     private val repo = container.playlists
@@ -34,30 +37,32 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
             list.firstOrNull { it.id == id } ?: list.firstOrNull()
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val _selectedGroup = MutableStateFlow<String?>(null)
+    private val playlistId = activePlaylist.map { it?.id }.distinctUntilChanged()
 
-    /** null = all channels. */
-    val selectedGroup: StateFlow<String?> = _selectedGroup.asStateFlow()
+    val organized: StateFlow<OrganizedPlaylist?> = playlistId
+        .flatMapLatest { id -> if (id == null) flowOf(null) else container.overlay.organized(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val groups: StateFlow<List<GroupInfo>> = activePlaylist
-        .map { it?.id }
-        .distinctUntilChanged()
-        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.groups(id) }
+    private val _selectedGroup = MutableStateFlow(OrganizedPlaylist.ALL)
+
+    /** A group key, or [OrganizedPlaylist.ALL] / [OrganizedPlaylist.FAVORITES]. */
+    val selectedGroup: StateFlow<String> = _selectedGroup.asStateFlow()
+
+    val groups: StateFlow<List<ChannelGroup>> = organized.map { it?.visibleGroups.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val channels: StateFlow<List<ChannelEntity>> =
-        combine(activePlaylist.map { it?.id }.distinctUntilChanged(), _selectedGroup) { id, group -> id to group }
-            .flatMapLatest { (id, group) -> if (id == null) flowOf(emptyList()) else repo.channels(id, group) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val channels: StateFlow<List<Channel>> = combine(organized, _selectedGroup) { organized, key ->
+        organized?.browse(key).orEmpty()
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val edits = ChannelEdits(container.overlay, viewModelScope)
 
     init {
         // A different playlist starts at "All channels".
-        activePlaylist.map { it?.id }.distinctUntilChanged()
-            .onEach { _selectedGroup.value = null }
-            .launchIn(viewModelScope)
+        playlistId.onEach { _selectedGroup.value = OrganizedPlaylist.ALL }.launchIn(viewModelScope)
     }
 
-    fun selectGroup(name: String?) {
-        _selectedGroup.value = name
+    fun selectGroup(key: String) {
+        _selectedGroup.value = key
     }
 }

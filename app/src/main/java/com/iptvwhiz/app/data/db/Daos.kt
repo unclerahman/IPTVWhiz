@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -32,18 +33,49 @@ interface ChannelDao {
     @Query("DELETE FROM channels WHERE playlistId = :playlistId")
     suspend fun deleteForPlaylist(playlistId: Long)
 
+}
+
+@Dao
+interface OverlayDao {
+    @Query("SELECT * FROM channel_view WHERE playlistId = :playlistId")
+    fun observeChannels(playlistId: Long): Flow<List<Channel>>
+
+    @Query("SELECT * FROM channel_view WHERE playlistId = :playlistId")
+    suspend fun channels(playlistId: Long): List<Channel>
+
+    @Query("SELECT * FROM channel_overrides WHERE playlistId = :playlistId AND stableKey = :stableKey")
+    suspend fun override(playlistId: Long, stableKey: String): ChannelOverride?
+
+    @Query("SELECT * FROM channel_overrides WHERE playlistId = :playlistId AND stableKey IN (:stableKeys)")
+    suspend fun overrides(playlistId: Long, stableKeys: List<String>): List<ChannelOverride>
+
+    @Upsert
+    suspend fun upsert(override: ChannelOverride)
+
+    @Upsert
+    suspend fun upsertAll(overrides: List<ChannelOverride>)
+
+    /** Channels in a deleted custom group go back to their provider group. */
     @Query(
         """
-        SELECT groupTitle AS name, COUNT(*) AS channelCount, MIN(number) AS firstNumber
-        FROM channels WHERE playlistId = :playlistId
-        GROUP BY groupTitle ORDER BY firstNumber
+        UPDATE channel_overrides SET customGroup = NULL, sortOrder = NULL, updatedAt = :now
+        WHERE playlistId = :playlistId AND customGroup = :group
         """,
     )
-    fun observeGroups(playlistId: Long): Flow<List<GroupInfo>>
+    suspend fun releaseGroup(playlistId: Long, group: String, now: Long)
 
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId ORDER BY number")
-    fun observeAll(playlistId: Long): Flow<List<ChannelEntity>>
+    @Query("SELECT * FROM group_settings WHERE playlistId = :playlistId")
+    fun observeGroupSettings(playlistId: Long): Flow<List<GroupSetting>>
 
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND groupTitle = :group ORDER BY number")
-    fun observeGroup(playlistId: Long, group: String): Flow<List<ChannelEntity>>
+    @Query("SELECT * FROM group_settings WHERE playlistId = :playlistId")
+    suspend fun groupSettings(playlistId: Long): List<GroupSetting>
+
+    @Upsert
+    suspend fun upsertGroup(setting: GroupSetting)
+
+    @Upsert
+    suspend fun upsertGroups(settings: List<GroupSetting>)
+
+    @Query("DELETE FROM group_settings WHERE playlistId = :playlistId AND name = :name")
+    suspend fun deleteGroup(playlistId: Long, name: String)
 }

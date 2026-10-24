@@ -6,7 +6,6 @@ import android.provider.OpenableColumns
 import androidx.room.withTransaction
 import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.db.ChannelEntity
-import com.iptvwhiz.app.data.db.GroupInfo
 import com.iptvwhiz.app.data.db.PlaylistEntity
 import com.iptvwhiz.app.data.db.PlaylistType
 import com.iptvwhiz.app.data.m3u.M3uParser
@@ -37,12 +36,6 @@ class PlaylistRepository(
     private val prefs: AppPrefs,
 ) {
     val playlists: Flow<List<PlaylistEntity>> = db.playlists().observeAll()
-
-    fun groups(playlistId: Long): Flow<List<GroupInfo>> = db.channels().observeGroups(playlistId)
-
-    /** [group] null = all channels. */
-    fun channels(playlistId: Long, group: String?): Flow<List<ChannelEntity>> =
-        if (group == null) db.channels().observeAll(playlistId) else db.channels().observeGroup(playlistId, group)
 
     /**
      * Downloads and parses first, and saves only if that worked, so a bad link never leaves

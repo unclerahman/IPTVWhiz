@@ -2,6 +2,7 @@ package com.iptvwhiz.app
 
 import android.content.Context
 import com.iptvwhiz.app.data.AppPrefs
+import com.iptvwhiz.app.data.OverlayRepository
 import com.iptvwhiz.app.data.PlaylistRepository
 import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.xtream.XtreamClient
@@ -36,6 +37,7 @@ class AppContainer(context: Context) {
     val db = AppDatabase.create(context)
     val xtream = XtreamClient(http, json)
     val playlists = PlaylistRepository(context, db, http, xtream, prefs)
+    val overlay = OverlayRepository(db)
 
     companion object {
         /**

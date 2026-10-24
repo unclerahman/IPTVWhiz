@@ -1,5 +1,15 @@
 package com.iptvwhiz.app.ui.mobile
 
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.runtime.remember
+import com.iptvwhiz.app.data.OrganizedPlaylist
+import com.iptvwhiz.app.ui.common.NoFavoritesText
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvwhiz.app.BuildConfig
 import com.iptvwhiz.app.R
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.TopLevel
 import com.iptvwhiz.app.ui.common.AdSlot
 import com.iptvwhiz.app.ui.common.BackToExit
@@ -62,7 +72,7 @@ private val bottomBarSections = TopLevel.entries - TopLevel.Search
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MobileHomeScreen(
-    onPlay: (ChannelEntity, group: String?) -> Unit,
+    onPlay: (Channel, group: String) -> Unit,
     onAddPlaylist: () -> Unit,
     onOpenRoute: (String) -> Unit,
 ) {
@@ -113,6 +123,7 @@ fun MobileHomeScreen(
             .padding(padding)
         when (selected) {
             TopLevel.Live -> MobileLiveContent(vm, onPlay, onAddPlaylist, contentModifier)
+            TopLevel.Favorites -> MobileFavoritesContent(vm, onPlay, contentModifier)
             TopLevel.Settings -> MobileSettings(onOpenRoute, contentModifier)
             else -> selected.emptyState()?.let { MobileEmptyState(it, contentModifier) }
         }
@@ -122,61 +133,142 @@ fun MobileHomeScreen(
 @Composable
 private fun MobileLiveContent(
     vm: LiveViewModel,
-    onPlay: (ChannelEntity, group: String?) -> Unit,
+    onPlay: (Channel, group: String) -> Unit,
     onAddPlaylist: () -> Unit,
     modifier: Modifier,
 ) {
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val playlist by vm.activePlaylist.collectAsStateWithLifecycle()
+    val organized by vm.organized.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
 
     if (playlists == null) return
-    val active = playlist
-    if (active == null) {
+    if (playlist == null) {
         MobileEmptyState(NoPlaylistText, modifier, actionLabel = stringResource(R.string.add_provider), onAction = onAddPlaylist)
         return
     }
 
     val listState = rememberLazyListState()
     LaunchedEffect(selectedGroup) { listState.scrollToItem(0) }
+    // The Favorites chip appears in front of "All channels"; scroll so it's seen, not hidden off the left edge.
+    val chipState = rememberLazyListState()
+    val hasFavorites = !organized?.favorites.isNullOrEmpty()
+    LaunchedEffect(hasFavorites) { if (hasFavorites) chipState.scrollToItem(0) }
 
     Column(modifier) {
         LazyRow(
+            state = chipState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item(key = "\u0000all") {
+            val favorites = organized?.favorites.orEmpty()
+            if (favorites.isNotEmpty()) {
+                item(key = OrganizedPlaylist.FAVORITES) {
+                    FilterChip(
+                        selected = selectedGroup == OrganizedPlaylist.FAVORITES,
+                        onClick = { vm.selectGroup(OrganizedPlaylist.FAVORITES) },
+                        label = { Text("${stringResource(R.string.nav_favorites)} · ${formatCount(favorites.size)}") },
+                    )
+                }
+            }
+            item(key = OrganizedPlaylist.ALL) {
                 FilterChip(
-                    selected = selectedGroup == null,
-                    onClick = { vm.selectGroup(null) },
-                    label = { Text("${stringResource(R.string.all_channels)} · ${formatCount(active.channelCount)}") },
+                    selected = selectedGroup == OrganizedPlaylist.ALL,
+                    onClick = { vm.selectGroup(OrganizedPlaylist.ALL) },
+                    label = { Text("${stringResource(R.string.all_channels)} · ${formatCount(organized?.visibleCount ?: 0)}") },
                 )
             }
-            items(groups, key = { it.name }) { group ->
+            items(groups, key = { it.key }) { group ->
                 FilterChip(
-                    selected = selectedGroup == group.name,
-                    onClick = { vm.selectGroup(group.name) },
-                    label = { Text("${group.name} · ${formatCount(group.channelCount)}") },
+                    selected = selectedGroup == group.key,
+                    onClick = { vm.selectGroup(group.key) },
+                    label = { Text("${group.displayName} · ${formatCount(group.visibleCount)}") },
                 )
             }
         }
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(channels, key = { it.stableKey }) { channel ->
-                ListItem(
-                    leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
-                    overlineContent = { Text(channel.number.toString()) },
-                    headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = if (selectedGroup == null) {
-                        { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier.clickable { onPlay(channel, selectedGroup) },
-                )
-            }
+        MobileChannelList(
+            vm = vm,
+            channels = channels,
+            showGroup = selectedGroup == OrganizedPlaylist.ALL || selectedGroup == OrganizedPlaylist.FAVORITES,
+            listState = listState,
+            onPlay = { onPlay(it, selectedGroup) },
+        )
+    }
+}
+
+@Composable
+private fun MobileFavoritesContent(vm: LiveViewModel, onPlay: (Channel, group: String) -> Unit, modifier: Modifier) {
+    val organized by vm.organized.collectAsStateWithLifecycle()
+    val favorites = organized?.favorites ?: return
+    if (favorites.isEmpty()) {
+        MobileEmptyState(NoFavoritesText, modifier)
+        return
+    }
+    Box(modifier) {
+        MobileChannelList(
+            vm = vm,
+            channels = favorites,
+            showGroup = true,
+            listState = rememberLazyListState(),
+            onPlay = { onPlay(it, OrganizedPlaylist.FAVORITES) },
+        )
+    }
+}
+
+/** Tap plays; long-press opens the edit sheet (favorite, rename, move, hide). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MobileChannelList(
+    vm: LiveViewModel,
+    channels: List<Channel>,
+    showGroup: Boolean,
+    listState: LazyListState,
+    onPlay: (Channel) -> Unit,
+) {
+    val context = LocalContext.current
+    val organized by vm.organized.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf<Channel?>(null) }
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        items(channels, key = { it.stableKey }) { channel ->
+            ListItem(
+                leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
+                overlineContent = { Text(channel.number.toString()) },
+                headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                supportingContent = if (showGroup) {
+                    { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                } else {
+                    null
+                },
+                trailingContent = if (channel.favorite) {
+                    {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = stringResource(R.string.label_favorite),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                } else {
+                    null
+                },
+                modifier = Modifier.combinedClickable(
+                    onClick = { onPlay(channel) },
+                    onLongClick = { editing = channel },
+                ),
+            )
         }
+    }
+    editing?.let { channel ->
+        ChannelEditor(
+            channel = channel,
+            organized = organized,
+            edits = vm.edits,
+            onDone = { editing = null },
+            onNameTaken = { name ->
+                Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
+            },
+        )
     }
 }
 

@@ -239,7 +239,7 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 | M0 ✅ | Project skeleton | App launches on TV emulator + phone, nav + theme in place. Done 2026-10-24: release APK 1.1 MB, verified on a phone emulator and an Android TV 14 emulator (D-pad only). |
 | M1 ✅ | Import & play | Add M3U/Xtream, list groups/channels, play a stream. Done 2026-10-24, see notes below. |
 | M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1. Still to do: long-press OK quick menu, audio/subtitle track picker, "inverse channel keys" setting. |
-| M3 | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh |
+| M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
 | M4 | EPG basics | XMLTV import, now/next in list and player |
 | M5 | Polish & release | Search, favorites, settings, error states, store assets → **v1.0** |
 | M6+ | Phase 2 features | Guide grid, catch-up, backup, PIN, multi-playlist |
@@ -255,6 +255,16 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
   - Most TV boxes (including the emulator) have **no file picker**, so "Choose a file" only helps on phones. The "Set up from phone" page (§9) is the real fix for TV.
   - Focused tv-material buttons and list rows both use `inverseOnSurface`, so the theme's focus colours must work on both (light violet + dark text).
 - **Deferred:** credentials still stored in plain Room (move to Keystore before Play); Paging 3 not needed yet (11k-channel lists stay smooth with lazy lists); no FFmpeg audio extension yet.
+
+### M3 notes (2026-10-24)
+
+- **Done:** overlay tables `channel_overrides` / `group_settings` and the `channel_view` that applies them, keyed by stable key, so **edits survive refresh** (verified: favorite + hidden channel kept after re-downloading). Hide/show, rename (blank = original), favorites, move to group, custom groups (create, rename, delete → channels go back), reorder channels and groups with fractional positions, "Sort A–Z" and "Use the provider's order".
+- **TV:** long-press OK **or the Menu key** opens a channel's menu anywhere in Live; Manage screen with groups | channels, hidden items dimmed, move mode (▲▼ move, OK place, Back cancel). **Phone:** long-press opens a bottom sheet; Manage screens with ≡ drag handles, show/hide switches, heart toggles.
+- **Favorites:** a Favorites group at the top of Live (TV and phone) and the Favorites tab.
+- **Database:** first real migration (v1 → v2) generated from the exported schema; tested by upgrading both emulators with existing playlists (2,052 channels on TV).
+- **Tests:** 10 organizer tests (hidden channels/groups, custom groups, ordering, favorites, positions). 29 JVM tests in total.
+- **Behaviour to know:** "All channels" follows the group order, so after reordering groups the channel numbers in that list are no longer strictly ascending. Numbers stay the provider's, so number entry still finds the same channel.
+- **Not yet:** a "Show hidden" toggle in Live (hidden items are only reachable from Manage, by design for now); drag auto-scroll on long phone lists; multi-select bulk actions.
 
 ---
 

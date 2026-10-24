@@ -69,8 +69,10 @@ fun TvTextField(
     keyboardType: KeyboardType = KeyboardType.Uri,
     error: String? = null,
     focusRequester: FocusRequester = remember { FocusRequester() },
+    /** Open the keyboard straight away (e.g. a rename dialog with a single field). */
+    startEditing: Boolean = false,
 ) {
-    var editing by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(startEditing) }
     var returnFocus by remember { mutableStateOf(false) }
     val fieldFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current

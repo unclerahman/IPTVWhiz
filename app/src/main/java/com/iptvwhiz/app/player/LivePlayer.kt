@@ -17,7 +17,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvwhiz.app.AppContainer
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.db.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,7 +68,7 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     val state: StateFlow<LivePlayerState> = _state.asStateFlow()
 
     private val handler = Handler(Looper.getMainLooper())
-    private var channel: ChannelEntity? = null
+    private var channel: Channel? = null
     private var forceHls = false
     private var retries = 0
     private var stopped = false
@@ -90,7 +90,7 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         })
     }
 
-    fun play(channel: ChannelEntity) {
+    fun play(channel: Channel) {
         handler.removeCallbacksAndMessages(null)
         this.channel = channel
         forceHls = channel.streamUrl.contains(".m3u8", ignoreCase = true)

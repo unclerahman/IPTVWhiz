@@ -25,11 +25,22 @@ object Routes {
     const val ARG_KEY = "key"
     const val PLAYER = "player/{$ARG_PLAYLIST}?$ARG_GROUP={$ARG_GROUP}&$ARG_KEY={$ARG_KEY}"
 
-    /** [group] null plays from "All channels". */
-    fun player(playlistId: Long, group: String?, stableKey: String): String = buildString {
-        append("player/$playlistId?$ARG_KEY=${Uri.encode(stableKey)}")
-        if (group != null) append("&$ARG_GROUP=${Uri.encode(group)}")
-    }
+    /** [group] is a group key or OrganizedPlaylist.ALL / FAVORITES; zapping stays inside it. */
+    fun player(playlistId: Long, group: String, stableKey: String): String =
+        "player/$playlistId?$ARG_KEY=${Uri.encode(stableKey)}&$ARG_GROUP=${Uri.encode(group)}"
+
+    const val MANAGE = "manage"
+    const val MANAGE_GROUP = "manage/group?$ARG_GROUP={$ARG_GROUP}"
+
+    fun manageGroup(groupKey: String): String = "manage/group?$ARG_GROUP=${Uri.encode(groupKey)}"
+
+    val manageGroupArguments = listOf(
+        navArgument(ARG_GROUP) {
+            type = NavType.StringType
+            nullable = true
+            defaultValue = null
+        },
+    )
 
     val playerArguments = listOf(
         navArgument(ARG_PLAYLIST) { type = NavType.LongType },

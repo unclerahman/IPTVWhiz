@@ -70,7 +70,7 @@
     <string name="empty_guide_title">TV guide is coming</string>
     <string name="empty_guide_message">The guide will show what\'s on once EPG support arrives.</string>
     <string name="empty_favorites_title">No favorites yet</string>
-    <string name="empty_favorites_message">Favorites arrive with channel management.</string>
+    <string name="empty_favorites_message">Long-press a channel (or press Menu on the remote) and choose Add to favorites.</string>
     <string name="empty_search_title">Search channels</string>
     <string name="empty_search_message">Search is coming in a future update.</string>
     <string name="add_provider">Add provider</string>
@@ -126,6 +126,42 @@
     <string name="settings_backup_desc">Move your edits between devices with a file</string>
     <string name="settings_about">About</string>
     <string name="settings_about_desc">Version %1$s</string>
+
+    <!-- Editing channels and groups -->
+    <string name="channel_add_favorite">Add to favorites</string>
+    <string name="channel_remove_favorite">Remove from favorites</string>
+    <string name="channel_rename">Rename</string>
+    <string name="channel_move_group">Move to another group</string>
+    <string name="channel_hide">Hide channel</string>
+    <string name="channel_show">Show channel</string>
+    <string name="change_position">Change position</string>
+    <string name="originally">Originally: %1$s</string>
+    <string name="save">Save</string>
+    <string name="field_name">Name</string>
+    <string name="rename_hint">Leave empty to use the original name.</string>
+    <string name="move_to_group_title">Move to group</string>
+    <string name="new_group">New group</string>
+    <string name="field_group_name">Group name</string>
+    <string name="create">Create</string>
+    <string name="name_taken">There\'s already a group called %1$s.</string>
+    <string name="manage_title">Manage channels</string>
+    <string name="manage_groups">Groups</string>
+    <string name="manage_empty">Add a playlist first, then come back to organize it.</string>
+    <string name="group_hide">Hide group</string>
+    <string name="group_show">Show group</string>
+    <string name="group_sort_az">Sort channels A–Z</string>
+    <string name="group_reset_order">Use the provider\'s order</string>
+    <string name="group_delete">Delete group</string>
+    <string name="group_delete_confirm_title">Delete %1$s?</string>
+    <string name="group_delete_confirm_message">The group is removed. Its channels go back to their original groups.</string>
+    <string name="label_hidden">Hidden</string>
+    <string name="label_your_group">Your group</string>
+    <string name="group_counts">%1$s shown · %2$s hidden</string>
+    <string name="move_hint_tv">▲▼ move · OK place it · Back cancel</string>
+    <string name="move_hint_phone">Drag ≡ to change the order</string>
+    <string name="label_visible">Shown</string>
+    <string name="label_favorite">Favorite</string>
+    <string name="more_options">More options</string>
 
     <string name="press_back_again">Press Back again to exit</string>
 </resources>

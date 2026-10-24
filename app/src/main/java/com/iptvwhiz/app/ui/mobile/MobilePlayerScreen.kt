@@ -65,7 +65,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvwhiz.app.R
-import com.iptvwhiz.app.data.db.ChannelEntity
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.player.LivePlayerState
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
@@ -89,6 +89,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     val index by vm.index.collectAsStateWithLifecycle()
     val current by vm.current.collectAsStateWithLifecycle()
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
+    val groupName by vm.groupName.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var controlsVisible by remember { mutableStateOf(true) }
@@ -126,7 +127,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) {
                 video(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
             }
-            current?.let { NowPlaying(it, vm.group) }
+            current?.let { NowPlaying(it, groupName) }
             HorizontalDivider()
             PortraitChannelList(channels, index, onSelect = vm::playAt)
         }
@@ -136,7 +137,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
 @Composable
 private fun VideoArea(
     vm: PlayerViewModel,
-    channel: ChannelEntity?,
+    channel: Channel?,
     state: LivePlayerState,
     controlsVisible: Boolean,
     onToggleControls: () -> Unit,
@@ -244,7 +245,7 @@ private fun RoundControl(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun NowPlaying(channel: ChannelEntity, group: String?) {
+private fun NowPlaying(channel: Channel, group: String?) {
     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         ChannelLogo(channel.name, channel.logoUrl, size = 48.dp)
         Spacer(Modifier.width(12.dp))
@@ -265,7 +266,7 @@ private fun NowPlaying(channel: ChannelEntity, group: String?) {
 }
 
 @Composable
-private fun PortraitChannelList(channels: List<ChannelEntity>, currentIndex: Int, onSelect: (Int) -> Unit) {
+private fun PortraitChannelList(channels: List<Channel>, currentIndex: Int, onSelect: (Int) -> Unit) {
     val listState = rememberLazyListState()
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0) listState.animateScrollToItem((currentIndex - 2).coerceAtLeast(0))
