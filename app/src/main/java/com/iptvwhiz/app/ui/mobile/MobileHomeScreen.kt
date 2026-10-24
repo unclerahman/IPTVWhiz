@@ -1,6 +1,12 @@
 package com.iptvwhiz.app.ui.mobile
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.ui.common.ProgramProgress
+import com.iptvwhiz.app.ui.common.formatTimeRange
+import com.iptvwhiz.app.ui.common.nextLine
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -124,6 +130,7 @@ fun MobileHomeScreen(
         when (selected) {
             TopLevel.Live -> MobileLiveContent(vm, onPlay, onAddPlaylist, contentModifier)
             TopLevel.Favorites -> MobileFavoritesContent(vm, onPlay, contentModifier)
+            TopLevel.Guide -> MobileGuideContent(vm, onPlay, contentModifier)
             TopLevel.Settings -> MobileSettings(onOpenRoute, contentModifier)
             else -> selected.emptyState()?.let { MobileEmptyState(it, contentModifier) }
         }
@@ -229,17 +236,19 @@ private fun MobileChannelList(
 ) {
     val context = LocalContext.current
     val organized by vm.organized.collectAsStateWithLifecycle()
+    val guide by vm.nowNext.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Channel?>(null) }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         items(channels, key = { it.stableKey }) { channel ->
+            val programme = guide[channel.stableKey]
             ListItem(
                 leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
                 overlineContent = { Text(channel.number.toString()) },
                 headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                supportingContent = if (showGroup) {
-                    { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                } else {
-                    null
+                supportingContent = when {
+                    programme?.now != null -> { { MobileNowLine(programme) } }
+                    showGroup -> { { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                    else -> null
                 },
                 trailingContent = if (channel.favorite) {
                     {
@@ -312,5 +321,65 @@ private fun MobileSettings(onOpenRoute: (String) -> Unit, modifier: Modifier) {
             HorizontalDivider()
         }
         item { AdSlot() }
+    }
+}
+
+@Composable
+private fun MobileNowLine(programme: NowNext) {
+    val now = programme.now ?: return
+    Column {
+        Text(now.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(4.dp))
+        ProgramProgress(
+            fraction = programme.progress(System.currentTimeMillis()),
+            color = MaterialTheme.colorScheme.primary,
+            track = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.width(140.dp),
+        )
+    }
+}
+
+/** Guide section: what's on now and next on every channel that has a guide. */
+@Composable
+private fun MobileGuideContent(vm: LiveViewModel, onPlay: (Channel, group: String) -> Unit, modifier: Modifier) {
+    val context = LocalContext.current
+    val organized by vm.organized.collectAsStateWithLifecycle()
+    val guide by vm.nowNext.collectAsStateWithLifecycle()
+    val channels = remember(organized, guide) {
+        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.stableKey] != null }
+    }
+    if (channels.isEmpty()) {
+        MobileEmptyState(EmptyStateText(R.string.guide_empty_title, R.string.guide_empty_message), modifier)
+        return
+    }
+    LazyColumn(modifier) {
+        items(channels, key = { it.stableKey }) { channel ->
+            val programme = guide[channel.stableKey]
+            ListItem(
+                leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
+                overlineContent = { Text("${channel.number}  ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                headlineContent = {
+                    Text(
+                        programme?.now?.let { "${context.formatTimeRange(it)}  ${it.title}" }
+                            ?: stringResource(R.string.guide_nothing_now),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                supportingContent = {
+                    Column {
+                        ProgramProgress(
+                            fraction = programme?.progress(System.currentTimeMillis()) ?: 0f,
+                            color = MaterialTheme.colorScheme.primary,
+                            track = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        )
+                        programme?.next?.let { Text(context.nextLine(it), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                },
+                modifier = Modifier.clickable { onPlay(channel, OrganizedPlaylist.ALL) },
+            )
+            HorizontalDivider()
+        }
     }
 }

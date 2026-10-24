@@ -7,6 +7,7 @@ import com.iptvwhiz.app.data.ChannelGroup
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.PlaylistEntity
+import com.iptvwhiz.app.data.epg.NowNext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,6 +57,11 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val edits = ChannelEdits(container.overlay, viewModelScope)
+
+    /** What's on now/next, by channel stable key. Empty until a guide is loaded. */
+    val nowNext: StateFlow<Map<String, NowNext>> = playlistId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyMap()) else container.epg.nowNext(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {
         // A different playlist starts at "All channels".

@@ -6,6 +6,7 @@ import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.ImportError
 import com.iptvwhiz.app.data.ImportException
 import com.iptvwhiz.app.data.PlaylistSource
+import com.iptvwhiz.app.data.epg.EpgScheduler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,7 @@ sealed interface ImportState {
 class AddPlaylistViewModel(container: AppContainer) : ViewModel() {
     private val repo = container.playlists
     private val prefs = container.prefs
+    private val context = container.appContext
 
     private val _state = MutableStateFlow<ImportState>(ImportState.Idle)
     val state: StateFlow<ImportState> = _state.asStateFlow()
@@ -40,6 +42,7 @@ class AddPlaylistViewModel(container: AppContainer) : ViewModel() {
                 }
                 // A playlist the user just added is the one they want to watch.
                 prefs.setActivePlaylist(id)
+                EpgScheduler.updateNow(context, id)
                 _state.value = ImportState.Done(id, found)
             } catch (e: ImportException) {
                 _state.value = ImportState.Failed(e.error)

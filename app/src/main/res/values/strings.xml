@@ -67,7 +67,7 @@
     <string name="empty_live_title">No channels yet</string>
     <string name="empty_live_message">Add a provider to see your channels here.</string>
     <string name="empty_group">No channels in this group.</string>
-    <string name="empty_guide_title">TV guide is coming</string>
+    <string name="empty_guide_title">No TV guide yet</string>
     <string name="empty_guide_message">The guide will show what\'s on once EPG support arrives.</string>
     <string name="empty_favorites_title">No favorites yet</string>
     <string name="empty_favorites_message">Long-press a channel (or press Menu on the remote) and choose Add to favorites.</string>
@@ -194,6 +194,34 @@
     <plurals name="playlist_count">
         <item quantity="one">%1$d playlist</item>
         <item quantity="other">%1$d playlists</item>
+    </plurals>
+
+    <!-- TV guide -->
+    <string name="guide_next">Next %1$s · %2$s</string>
+    <string name="guide_now_next_title">Now &amp; next</string>
+    <string name="guide_empty_title">No TV guide yet</string>
+    <string name="guide_empty_message">The guide loads in the background after a playlist is added. You can check it or add a guide link in Settings → TV guide.</string>
+    <string name="guide_nothing_now">No information</string>
+    <string name="guide_settings_intro">The TV guide shows what\'s on now and next. It updates by itself once a day.</string>
+    <string name="guide_links">Guide links (XMLTV)</string>
+    <string name="guide_links_hint">One or more links, separated by commas</string>
+    <string name="guide_update_now">Update guide now</string>
+    <string name="guide_save_link">Save and update</string>
+    <string name="guide_updating">Updating the guide…</string>
+    <string name="guide_updating_sources">Updating the guide… (source %1$d of %2$d)</string>
+    <string name="guide_no_link">This playlist has no guide link. Add one below.</string>
+    <string name="guide_not_loaded">Not loaded yet.</string>
+    <string name="guide_updated">Updated %1$s</string>
+    <string name="guide_links_capped">Using %1$d of %2$d guide links; edit the list to choose which</string>
+    <string name="guide_some_failed">Some guide links couldn\'t be loaded</string>
+    <string name="guide_last_failed">The last update failed; showing the previous guide.</string>
+    <plurals name="guide_channels_matched">
+        <item quantity="one">%1$s channel matched</item>
+        <item quantity="other">%1$s channels matched</item>
+    </plurals>
+    <plurals name="guide_programmes">
+        <item quantity="one">%1$s programme</item>
+        <item quantity="other">%1$s programmes</item>
     </plurals>
 
     <string name="press_back_again">Press Back again to exit</string>

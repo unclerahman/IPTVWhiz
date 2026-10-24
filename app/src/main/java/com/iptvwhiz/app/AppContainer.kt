@@ -5,8 +5,12 @@ import com.iptvwhiz.app.data.AppPrefs
 import com.iptvwhiz.app.data.OverlayRepository
 import com.iptvwhiz.app.data.PlaylistRepository
 import com.iptvwhiz.app.data.backup.BackupRepository
+import com.iptvwhiz.app.data.epg.EpgRepository
 import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.xtream.XtreamClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -14,6 +18,9 @@ import java.util.concurrent.TimeUnit
 /** Hand-wired dependencies. Small enough that a DI framework would only add weight. */
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
+
+    /** For work that outlives any screen (e.g. checking guide freshness at startup). */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -40,6 +47,7 @@ class AppContainer(context: Context) {
     val playlists = PlaylistRepository(context, db, http, xtream, prefs)
     val overlay = OverlayRepository(db)
     val backups = BackupRepository(db, playlists)
+    val epg = EpgRepository(db, http)
 
     companion object {
         /**

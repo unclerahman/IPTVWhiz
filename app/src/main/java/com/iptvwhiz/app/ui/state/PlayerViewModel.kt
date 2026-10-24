@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.epg.NowNext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.iptvwhiz.app.player.LivePlayer
 import com.iptvwhiz.app.ui.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,12 @@ class PlayerViewModel(container: AppContainer, savedState: SavedStateHandle) : V
 
     val current: StateFlow<Channel?> = combine(_channels, _index) { list, i -> list.getOrNull(i) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** What's on the current channel now and next. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val programme: StateFlow<NowNext?> = combine(container.epg.nowNext(playlistId), current) { guide, channel ->
+        channel?.let { guide[it.stableKey] }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         viewModelScope.launch {

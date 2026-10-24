@@ -84,6 +84,7 @@ fun TvHomeScreen(
             when (selected) {
                 TopLevel.Live -> TvLiveContent(onPlay = onPlay, onAddPlaylist = onAddPlaylist)
                 TopLevel.Favorites -> TvFavoritesContent(onPlay = onPlay)
+                TopLevel.Guide -> TvGuideContent(onPlay = onPlay)
                 TopLevel.Settings -> TvSettings(onOpenRoute)
                 else -> selected.emptyState()?.let { TvEmptyState(it) }
             }

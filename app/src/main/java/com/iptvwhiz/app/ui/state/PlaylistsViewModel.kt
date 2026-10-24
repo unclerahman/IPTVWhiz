@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.ImportError
 import com.iptvwhiz.app.data.ImportException
+import com.iptvwhiz.app.data.epg.EpgScheduler
 import com.iptvwhiz.app.data.db.PlaylistEntity
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ sealed interface PlaylistEvent {
 class PlaylistsViewModel(container: AppContainer) : ViewModel() {
     private val repo = container.playlists
     private val prefs = container.prefs
+    private val context = container.appContext
 
     val playlists: StateFlow<List<PlaylistEntity>?> =
         repo.playlists.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -46,6 +48,7 @@ class PlaylistsViewModel(container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             try {
                 repo.refresh(playlist.id)
+                EpgScheduler.updateNow(context, playlist.id)
                 _events.emit(PlaylistEvent.Refreshed(playlist.name))
             } catch (e: ImportException) {
                 _events.emit(PlaylistEvent.RefreshFailed(playlist.name, e.error))

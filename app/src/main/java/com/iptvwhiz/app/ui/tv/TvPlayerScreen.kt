@@ -62,6 +62,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.ui.common.ProgramProgress
+import com.iptvwhiz.app.ui.common.formatTimeRange
+import com.iptvwhiz.app.ui.common.nextLine
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
 import com.iptvwhiz.app.ui.common.playbackProblemMessage
@@ -87,6 +91,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     val current by vm.current.collectAsStateWithLifecycle()
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
     val groupName by vm.groupName.collectAsStateWithLifecycle()
+    val programme by vm.programme.collectAsStateWithLifecycle()
 
     var listVisible by remember { mutableStateOf(false) }
     var bannerToken by remember { mutableIntStateOf(0) }
@@ -172,7 +177,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            current?.let { InfoBanner(it, position = index + 1, total = channels.size, group = groupName) }
+            current?.let { InfoBanner(it, position = index + 1, total = channels.size, group = groupName, programme = programme) }
         }
 
         AnimatedVisibility(
@@ -207,7 +212,8 @@ fun TvPlayerScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoBanner(channel: Channel, position: Int, total: Int, group: String?) {
+private fun InfoBanner(channel: Channel, position: Int, total: Int, group: String?, programme: NowNext?) {
+    val context = LocalContext.current
     Box(
         Modifier
             .fillMaxWidth()
@@ -225,11 +231,39 @@ private fun InfoBanner(channel: Channel, position: Int, total: Int, group: Strin
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = group ?: channel.groupTitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.7f),
-                )
+                val now = programme?.now
+                if (now == null) {
+                    Text(
+                        text = group ?: channel.groupTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                } else {
+                    Text(
+                        text = "${context.formatTimeRange(now)}   ${now.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    ProgramProgress(
+                        fraction = programme.progress(System.currentTimeMillis()),
+                        color = MaterialTheme.colorScheme.secondary,
+                        track = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.width(420.dp),
+                    )
+                    programme.next?.let { next ->
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            context.nextLine(next),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(

@@ -13,7 +13,7 @@ data class EmptyStateText(@StringRes val title: Int, @StringRes val message: Int
 
 fun TopLevel.emptyState(): EmptyStateText? = when (this) {
     TopLevel.Live -> null
-    TopLevel.Guide -> EmptyStateText(R.string.empty_guide_title, R.string.empty_guide_message)
+    TopLevel.Guide -> null
     TopLevel.Favorites -> null
     TopLevel.Search -> EmptyStateText(R.string.empty_search_title, R.string.empty_search_message)
     TopLevel.Settings -> null
@@ -26,7 +26,7 @@ data class SettingsEntry(@StringRes val title: Int, @StringRes val description: 
 
 val settingsEntries = listOf(
     SettingsEntry(R.string.settings_playlists, R.string.settings_playlists_desc, Routes.PLAYLISTS),
-    SettingsEntry(R.string.settings_epg, R.string.settings_epg_desc),
+    SettingsEntry(R.string.settings_epg, R.string.settings_epg_desc, Routes.EPG),
     SettingsEntry(R.string.settings_manage, R.string.settings_manage_desc, Routes.MANAGE),
     SettingsEntry(R.string.settings_player, R.string.settings_player_desc),
     SettingsEntry(R.string.settings_appearance, R.string.settings_appearance_desc),

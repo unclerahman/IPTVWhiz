@@ -240,9 +240,9 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 | M1 ✅ | Import & play | Add M3U/Xtream, list groups/channels, play a stream. Done 2026-10-24, see notes below. |
 | M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1. Still to do: long-press OK quick menu, audio/subtitle track picker, "inverse channel keys" setting. |
 | M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
-| M4 | EPG basics | XMLTV import, now/next in list and player |
+| M4 ✅ | EPG basics | XMLTV import, now/next in list and player. Done 2026-10-25 (plus a Now & next Guide tab). |
 | M5 | Polish & release | Search, favorites, settings, error states, store assets → **v1.0** |
-| M6+ | Phase 2 features | Guide grid, catch-up, backup, PIN, multi-playlist |
+| M6+ | Phase 2 features | Guide grid, catch-up, PIN (backup file ✅ 2026-10-25, multi-playlist ✅ in M1) |
 
 ---
 
@@ -265,6 +265,16 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 - **Tests:** 10 organizer tests (hidden channels/groups, custom groups, ordering, favorites, positions). 29 JVM tests in total.
 - **Behaviour to know:** "All channels" follows the group order, so after reordering groups the channel numbers in that list are no longer strictly ascending. Numbers stay the provider's, so number entry still finds the same channel.
 - **Not yet:** a "Show hidden" toggle in Live (hidden items are only reachable from Manage, by design for now); drag auto-scroll on long phone lists; multi-select bulk actions.
+
+### Backup & M4 notes (2026-10-25)
+
+- **Backup & restore (§15 option A) done:** JSON file with playlists + all edits; playlists matched by a fingerprint (hash of type, address, username, never the password). Restore merges per item, newest change wins, and adds missing playlists only when the file includes logins (off by default). Phones use the system file picker. **Android TV has no real picker** (only a stub that returns nothing; now detected), so TV saves to `Download/IPTV Whiz` and restores from there or from `Android/data/com.iptvwhiz.app/files/backups` (USB). Files copied into Download by USB aren't visible to apps on Android 11+, which is why the app folder is also read. The phone→TV web page (§9) remains the friendly fix.
+- **M4 done:** streaming XMLTV import (gzip detected by content), programmes kept for matched channels only, 2 h back to 3 days ahead. Matching by tvg-id (case-insensitive), then by normalised name when the tvg-id isn't in the guide. Old guide data is replaced only after a successful import. Now/next in TV and phone channel lists, the player banner and a Now & next Guide tab; Settings → TV guide shows status, lets you edit links and update now.
+- **Updates:** WorkManager, daily; also right after adding/refreshing a playlist, and at app start when the guide is over a day old.
+- **Big guide lists:** Free-TV's header lists **101 guide links (~600 MB)**. At most 10 links are used per update, preferring files whose name carries the country codes of your channels' tvg-ids; the settings screen says so and the list can be edited.
+- **Database:** v3 (programs, channel_epg, epg_status). Migrations are generated from `app/schemas` by `tools/gen_migration.py` (additive steps only).
+- **Tests:** 40 JVM tests (XMLTV times/offsets, CDATA, matching rules, now/next, link selection, backup merge).
+- **Not yet:** full guide grid with scrolling timeline (M6), catch-up, programme reminders, per-playlist User-Agent.
 
 ---
 

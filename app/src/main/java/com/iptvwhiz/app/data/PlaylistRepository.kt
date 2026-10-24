@@ -84,10 +84,26 @@ class PlaylistRepository(
                 playlist.copy(
                     channelCount = fetched.channels.size,
                     lastRefreshed = System.currentTimeMillis(),
-                    epgUrl = playlist.epgUrl ?: fetched.epgUrl,
+                    epgUrl = refreshedEpgUrl(playlist.epgUrl, fetched.epgUrl),
                 ),
             )
         }
+    }
+
+    /**
+     * The playlist's guide links after a refresh. Links that came from the playlist header follow
+     * the header (it may have gained links); a link the user typed in themselves is kept.
+     */
+    private fun refreshedEpgUrl(current: String?, fromHeader: String?): String? {
+        if (current == null || fromHeader == null) return current ?: fromHeader
+        val headerLinks = fromHeader.split(',').map { it.trim() }
+        val currentLinks = current.split(',').map { it.trim() }
+        return if (currentLinks.all { it in headerLinks }) fromHeader else current
+    }
+
+    suspend fun setEpgUrl(playlistId: Long, url: String?) {
+        val playlist = db.playlists().get(playlistId) ?: return
+        db.playlists().update(playlist.copy(epgUrl = url?.trim()?.ifEmpty { null }))
     }
 
     suspend fun delete(playlistId: Long) {
@@ -151,7 +167,8 @@ class PlaylistRepository(
                 referrer = entry.referrer,
             )
         }
-        return Fetched(channels, playlist.epgUrls.firstOrNull())
+        // Some playlists (e.g. Free-TV) list several guides; keep them all, comma-separated.
+        return Fetched(channels, playlist.epgUrls.joinToString(",").ifEmpty { null })
     }
 
     private suspend fun fetchXtream(credentials: XtreamCredentials, onProgress: (Int) -> Unit): Fetched {

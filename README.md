@@ -32,6 +32,10 @@ All code is in the `:app` module for now, split by package. It can be broken int
 - `ui/common`: shared pieces (logos, messages, video surface, file picker)
 - `ui/theme`: brand tokens and both themes
 
+## Database changes
+
+After changing an entity, bump the version in `AppDatabase`, build once (Room writes `app/schemas/<version>.json`), then run `python tools/gen_migration.py .` to regenerate `Migrations.kt`. It handles new tables and views; anything else needs a hand-written migration.
+
 ## Test
 
 ```bash

@@ -23,5 +23,23 @@ object Migrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2)
+    /** v3: TV guide: programmes, guide-to-channel map and update status. */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `programs` (`playlistId` INTEGER NOT NULL, `epgId` TEXT NOT NULL, `start` INTEGER NOT NULL, `stop` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `importedAt` INTEGER NOT NULL, PRIMARY KEY(`playlistId`, `epgId`, `start`), FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_programs_playlistId_stop` ON `programs` (`playlistId`, `stop`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `channel_epg` (`playlistId` INTEGER NOT NULL, `stableKey` TEXT NOT NULL, `epgId` TEXT NOT NULL, PRIMARY KEY(`playlistId`, `stableKey`), FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `epg_status` (`playlistId` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, `matchedChannels` INTEGER NOT NULL, `programmes` INTEGER NOT NULL, `lastError` TEXT, PRIMARY KEY(`playlistId`), FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

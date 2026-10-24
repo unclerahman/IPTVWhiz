@@ -66,6 +66,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.ui.common.ProgramProgress
+import com.iptvwhiz.app.ui.common.formatTimeRange
+import com.iptvwhiz.app.ui.common.nextLine
 import com.iptvwhiz.app.player.LivePlayerState
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
@@ -90,6 +94,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     val current by vm.current.collectAsStateWithLifecycle()
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
     val groupName by vm.groupName.collectAsStateWithLifecycle()
+    val programme by vm.programme.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var controlsVisible by remember { mutableStateOf(true) }
@@ -127,7 +132,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) {
                 video(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
             }
-            current?.let { NowPlaying(it, groupName) }
+            current?.let { NowPlaying(it, groupName, programme) }
             HorizontalDivider()
             PortraitChannelList(channels, index, onSelect = vm::playAt)
         }
@@ -245,7 +250,8 @@ private fun RoundControl(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun NowPlaying(channel: Channel, group: String?) {
+private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?) {
+    val context = LocalContext.current
     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         ChannelLogo(channel.name, channel.logoUrl, size = 48.dp)
         Spacer(Modifier.width(12.dp))
@@ -256,11 +262,36 @@ private fun NowPlaying(channel: Channel, group: String?) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                group ?: channel.groupTitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val now = programme?.now
+            if (now == null) {
+                Text(
+                    group ?: channel.groupTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    "${context.formatTimeRange(now)}  ${now.title}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                ProgramProgress(
+                    fraction = programme.progress(System.currentTimeMillis()),
+                    color = MaterialTheme.colorScheme.primary,
+                    track = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.width(200.dp).padding(vertical = 4.dp),
+                )
+                programme.next?.let {
+                    Text(
+                        context.nextLine(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }

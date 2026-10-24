@@ -49,6 +49,9 @@ import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.ui.common.ProgramProgress
+import androidx.tv.material3.LocalContentColor
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.NoFavoritesText
 import com.iptvwhiz.app.ui.common.NoPlaylistText
@@ -72,6 +75,7 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
     val groups by vm.groups.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
+    val nowNext by vm.nowNext.collectAsStateWithLifecycle()
 
     if (playlists == null) return
     val active = playlist
@@ -132,6 +136,7 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
         Box(Modifier.weight(1f).fillMaxHeight()) {
             TvChannelList(
                 channels = channels,
+                guide = nowNext,
                 listKey = selectedGroup,
                 showGroup = selectedGroup == OrganizedPlaylist.ALL || selectedGroup == OrganizedPlaylist.FAVORITES,
                 lastPlayedKey = lastPlayedKey,
@@ -163,6 +168,7 @@ fun TvFavoritesContent(onPlay: (Channel, group: String) -> Unit) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
     val context = LocalContext.current
     val organized by vm.organized.collectAsStateWithLifecycle()
+    val nowNext by vm.nowNext.collectAsStateWithLifecycle()
     var lastPlayedKey by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Channel?>(null) }
     val favorites = organized?.favorites ?: return
@@ -176,6 +182,7 @@ fun TvFavoritesContent(onPlay: (Channel, group: String) -> Unit) {
         Spacer(Modifier.size(16.dp))
         TvChannelList(
             channels = favorites,
+            guide = nowNext,
             listKey = OrganizedPlaylist.FAVORITES,
             showGroup = true,
             lastPlayedKey = lastPlayedKey,
@@ -207,6 +214,7 @@ fun TvFavoritesContent(onPlay: (Channel, group: String) -> Unit) {
 @Composable
 private fun TvChannelList(
     channels: List<Channel>,
+    guide: Map<String, NowNext>,
     listKey: String,
     showGroup: Boolean,
     lastPlayedKey: String?,
@@ -241,6 +249,7 @@ private fun TvChannelList(
             }
             ChannelRow(
                 channel = channel,
+                programme = guide[channel.stableKey],
                 showGroup = showGroup,
                 onClick = { onPlay(channel) },
                 onLongClick = { onEdit(channel) },
@@ -278,6 +287,7 @@ private fun GroupRow(
 @Composable
 private fun ChannelRow(
     channel: Channel,
+    programme: NowNext?,
     showGroup: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -310,11 +320,11 @@ private fun ChannelRow(
         headlineContent = {
             Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
-        // The group name only adds information in mixed lists; elsewhere it costs rows on screen.
-        supportingContent = if (showGroup) {
-            { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        } else {
-            null
+        // What's on beats the group name; the group name only helps in mixed lists.
+        supportingContent = when {
+            programme?.now != null -> { { NowLine(programme) } }
+            showGroup -> { { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+            else -> null
         },
         trailingContent = if (channel.favorite) {
             { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
@@ -322,4 +332,20 @@ private fun ChannelRow(
             null
         },
     )
+}
+
+/** Current programme title with a thin progress bar under it. */
+@Composable
+internal fun NowLine(programme: NowNext) {
+    val now = programme.now ?: return
+    Column {
+        Text(now.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.size(4.dp))
+        ProgramProgress(
+            fraction = programme.progress(System.currentTimeMillis()),
+            color = LocalContentColor.current,
+            track = LocalContentColor.current.copy(alpha = 0.25f),
+            modifier = Modifier.width(160.dp),
+        )
+    }
 }
