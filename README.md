@@ -34,12 +34,17 @@ All code is in the `:app` module for now, split by package. It can be broken int
 
 ## Database changes
 
-After changing an entity, bump the version in `AppDatabase`, build once (Room writes `app/schemas/<version>.json`), then run `python tools/gen_migration.py .` to regenerate `Migrations.kt`. It handles new tables and views; anything else needs a hand-written migration.
+After changing an entity, bump the version in `AppDatabase`, build once (Room writes `app/schemas/<version>.json`), then run `python tools/gen_migration.py .` to regenerate `SchemaMigrations.kt`. It handles new tables, indices, nullable columns and views; wire the step (plus any data moves) into the hand-written `Migrations.kt`.
 
 ## Test
 
 ```bash
-./gradlew testDebugUnitTest
+./gradlew testReleaseUnitTest
 ```
+
+## More
+
+- [CHANGELOG.md](CHANGELOG.md): what each version changed.
+- [CLAUDE.md](CLAUDE.md): working notes for agents (environment, emulators, conventions, next steps).
 
 Free, legal playlists for manual testing are listed in PLAN.md ("Free, legal test sources"). To try `testdata/test-playlist.m3u` on an emulator, serve the folder (`python -m http.server 8765` inside `testdata`) and add `http://10.0.2.2:8765/test-playlist.m3u` as an M3U link.

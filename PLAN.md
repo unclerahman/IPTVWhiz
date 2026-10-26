@@ -238,7 +238,7 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 |---|---|---|
 | M0 ✅ | Project skeleton | App launches on TV emulator + phone, nav + theme in place. Done 2026-10-24: release APK 1.1 MB, verified on a phone emulator and an Android TV 14 emulator (D-pad only). |
 | M1 ✅ | Import & play | Add M3U/Xtream, list groups/channels, play a stream. Done 2026-10-24, see notes below. |
-| M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1. Still to do: long-press OK quick menu, audio/subtitle track picker, "inverse channel keys" setting. |
+| M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1; quick menu (hold OK / Menu) done in 0.5.0. Still to do: audio/subtitle track picker, "inverse channel keys" setting. |
 | M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
 | M4 ✅ | EPG basics | XMLTV import, now/next in list and player. Done 2026-10-25 (plus a Now & next Guide tab). |
 | M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
@@ -399,3 +399,9 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - **Fixed while testing on TV:** DASH (`.mpd`) channels crashed the app because the DASH player module was missing. It is now included, and any stream type the player can't handle shows the "format isn't supported" card instead. Also fixed: focus jumping to the side menu when Check channels finished, filter buttons squeezed off screen, and Down from the search field skipping Clear / Check channels.
 - **Limits:** a health check can say Working when the playlist file answers but its video segments are blocked (seen on some geo-blocked channels). Hold OK on the player's error card presses Try again (Menu still opens the quick menu there).
 - **Tests:** 44 JVM tests.
+
+### Notes (0.5.1, 2026-10-26)
+
+- A link that opens a web page (a blog post with a playlist pasted in) used to import as channels named `<html>`, and Check channels then crashed. The parser now only takes `scheme://` lines as links, and the probe can't crash on one bad channel.
+- Phone video now uses a TextureView after a report of black video on a Xiaomi Redmi Note 10; not yet confirmed on that phone. TV keeps the SurfaceView.
+- Next steps are kept in [CLAUDE.md](CLAUDE.md) ("Next steps") and the history in [CHANGELOG.md](CHANGELOG.md).
