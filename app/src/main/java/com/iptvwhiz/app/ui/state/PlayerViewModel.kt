@@ -72,7 +72,14 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
 
     val edits = ChannelEdits(container, viewModelScope)
 
+    /** Whether the quality overlay (resolution, FPS, Mbps) is on; it is a setting, also switchable here. */
+    val showQuality: StateFlow<Boolean> = prefs.showQuality
+
+    fun toggleQuality() = prefs.setShowQuality(!prefs.showQuality.value)
+
     init {
+        // The player only measures while the overlay is on.
+        viewModelScope.launch { prefs.showQuality.collect { livePlayer.setStatsEnabled(it) } }
         viewModelScope.launch {
             val list = when (source) {
                 Routes.SOURCE_WATCHLIST -> {
@@ -85,7 +92,8 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
                 else -> {
                     val organized = container.overlay.organizedNow(playlistId)
                     _groupName.value = organized.groups.firstOrNull { it.key == group }?.displayName
-                    organized.browse(group)
+                    // Zapping skips blocked channels when that option is on, like the list it came from.
+                    (if (prefs.hideBlocked.value) organized.without(container.health.blockedNow()) else organized).browse(group)
                 }
             }
             _channels.value = list

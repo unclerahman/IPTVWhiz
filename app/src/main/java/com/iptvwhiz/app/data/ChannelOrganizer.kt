@@ -46,6 +46,21 @@ class OrganizedPlaylist(
         else -> channels.filter { it.groupTitle == key && !it.hidden }.sortedWith(displayOrder)
     }
 
+    /**
+     * The same playlist without the [blocked] channels, so browsing, counts and order all follow.
+     * Only for watching: the manage screens keep using the full playlist, to be able to bring them back.
+     */
+    fun without(blocked: Set<ChannelRef>): OrganizedPlaylist {
+        if (blocked.isEmpty()) return this
+        val kept = channels.filter { it.ref !in blocked }
+        val total = kept.groupingBy { it.groupTitle }.eachCount()
+        val visible = kept.filter { !it.hidden }.groupingBy { it.groupTitle }.eachCount()
+        return OrganizedPlaylist(
+            kept,
+            groups.map { it.copy(totalCount = total[it.key] ?: 0, visibleCount = visible[it.key] ?: 0) },
+        )
+    }
+
     /** Every channel of a group for editing, hidden ones included, in display order. */
     fun manage(groupKey: String): List<Channel> =
         channels.filter { it.groupTitle == groupKey }.sortedWith(displayOrder)

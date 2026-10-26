@@ -69,6 +69,7 @@ import com.iptvwhiz.app.ui.common.formatTimeRange
 import com.iptvwhiz.app.ui.common.nextLine
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
+import com.iptvwhiz.app.ui.common.QualityBadge
 import com.iptvwhiz.app.ui.common.playbackProblemMessage
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
 import com.iptvwhiz.app.ui.state.PlayerViewModel
@@ -94,6 +95,8 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     val groupName by vm.groupName.collectAsStateWithLifecycle()
     val programme by vm.programme.collectAsStateWithLifecycle()
     val watchlists by vm.watchlists.collectAsStateWithLifecycle()
+    val showQuality by vm.showQuality.collectAsStateWithLifecycle()
+    val stats by vm.livePlayer.stats.collectAsStateWithLifecycle()
 
     var listVisible by remember { mutableStateOf(false) }
     /** The channel whose quick menu is open (long-press OK / Menu), if any. */
@@ -184,6 +187,8 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             )
         }
 
+        if (showQuality) QualityBadge(stats, Modifier.align(Alignment.TopStart).padding(32.dp))
+
         playerState.problem?.let { problem ->
             ProblemPanel(
                 message = context.playbackProblemMessage(problem),
@@ -231,6 +236,9 @@ fun TvPlayerScreen(onBack: () -> Unit) {
                 onNameTaken = { name ->
                     Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
                 },
+                extraItems = listOf(
+                    TvMenuItem(stringResource(if (showQuality) R.string.quality_hide else R.string.quality_show), vm::toggleQuality),
+                ),
             )
         }
 

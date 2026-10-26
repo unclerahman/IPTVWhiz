@@ -23,8 +23,30 @@ class AppPrefs(context: Context) {
         prefs.edit().putString("$KEY_LAST_CHANNEL$playlistId", stableKey).apply()
     }
 
+    private val _showQuality = MutableStateFlow(prefs.getBoolean(KEY_SHOW_QUALITY, false))
+
+    /** Show resolution, FPS and Mbps over the video. */
+    val showQuality: StateFlow<Boolean> = _showQuality.asStateFlow()
+
+    fun setShowQuality(on: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_QUALITY, on).apply()
+        _showQuality.value = on
+    }
+
+    private val _hideBlocked = MutableStateFlow(prefs.getBoolean(KEY_HIDE_BLOCKED, false))
+
+    /** Leave channels the last health check found blocked out of Live TV, search and zapping. */
+    val hideBlocked: StateFlow<Boolean> = _hideBlocked.asStateFlow()
+
+    fun setHideBlocked(on: Boolean) {
+        prefs.edit().putBoolean(KEY_HIDE_BLOCKED, on).apply()
+        _hideBlocked.value = on
+    }
+
     companion object {
         const val NONE = -1L
+        private const val KEY_SHOW_QUALITY = "show_quality"
+        private const val KEY_HIDE_BLOCKED = "hide_blocked"
         private const val KEY_ACTIVE_PLAYLIST = "active_playlist"
         private const val KEY_LAST_CHANNEL = "last_channel_"
     }

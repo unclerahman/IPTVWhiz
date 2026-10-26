@@ -35,6 +35,20 @@ class ChannelOrganizerTest {
     private fun names(list: List<Channel>) = list.map { it.number }
 
     @Test
+    fun `blocked channels drop out of lists and counts, empty groups disappear`() {
+        val p = OrganizedPlaylist.build(listOf(news1, news2, sport3, sport4, kids5), emptyList())
+        val blocked = setOf(news2.ref, sport3.ref, sport4.ref)
+        val watching = p.without(blocked)
+        assertEquals(listOf(1, 5), names(watching.browse(ALL)))
+        assertEquals(listOf("News", "Kids"), watching.visibleGroups.map { it.key })
+        assertEquals(1, watching.visibleGroups.first { it.key == "News" }.visibleCount)
+        assertEquals(2, watching.visibleCount)
+        // The full playlist (manage screens) is untouched.
+        assertEquals(5, p.visibleCount)
+        assertEquals(p, p.without(emptySet()))
+    }
+
+    @Test
     fun `provider order when nothing is edited`() {
         val p = OrganizedPlaylist.build(listOf(sport3, news1, kids5, news2, sport4), emptyList())
         assertEquals(listOf("News", "Sport", "Kids"), p.groups.map { it.key })

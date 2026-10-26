@@ -7,6 +7,7 @@ import com.iptvwhiz.app.data.ChannelGroup
 import com.iptvwhiz.app.data.ChannelRef
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.Watchlist
+import com.iptvwhiz.app.data.blockedRefs
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.db.PlaylistEntity
@@ -44,9 +45,19 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
 
     private val playlistId = activePlaylist.map { it?.id }.distinctUntilChanged()
 
-    val organized: StateFlow<OrganizedPlaylist?> = playlistId
+    val health: StateFlow<Map<ChannelRef, HealthStatus>> = container.health.statuses()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private val allOrganized: Flow<OrganizedPlaylist?> = playlistId
         .flatMapLatest { id -> if (id == null) flowOf(null) else container.overlay.organized(id) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** What Live TV shows: the active playlist, minus blocked channels when that option is on. */
+    val organized: StateFlow<OrganizedPlaylist?> =
+        combine(allOrganized, container.health.statuses(), container.prefs.hideBlocked) { organized, health, hideBlocked ->
+            if (hideBlocked) organized?.without(health.blockedRefs()) else organized
+        }
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val watchlists: StateFlow<List<Watchlist>> = container.watchlists.watchlists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -80,9 +91,6 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
         .map { list -> list.map { it.id } }
         .distinctUntilChanged()
         .flatMapLatest { ids -> mergedGuide(container, ids) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
-
-    val health: StateFlow<Map<ChannelRef, HealthStatus>> = container.health.statuses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {

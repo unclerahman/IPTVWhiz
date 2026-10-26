@@ -1,5 +1,6 @@
 package com.iptvwhiz.app.ui.mobile
 
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
@@ -72,6 +74,9 @@ import com.iptvwhiz.app.ui.common.ProgramProgress
 import com.iptvwhiz.app.ui.common.formatTimeRange
 import com.iptvwhiz.app.ui.common.nextLine
 import com.iptvwhiz.app.player.LivePlayerState
+import com.iptvwhiz.app.player.StreamStats
+import com.iptvwhiz.app.ui.common.PlayerIcons
+import com.iptvwhiz.app.ui.common.QualityBadge
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.PlayerSurface
 import com.iptvwhiz.app.ui.common.findActivity
@@ -97,6 +102,8 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     val groupName by vm.groupName.collectAsStateWithLifecycle()
     val programme by vm.programme.collectAsStateWithLifecycle()
     val watchlists by vm.watchlists.collectAsStateWithLifecycle()
+    val showQuality by vm.showQuality.collectAsStateWithLifecycle()
+    val stats by vm.livePlayer.stats.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<Channel?>(null) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -116,6 +123,19 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.livePlayer.resume() }
     ImmersiveMode(enabled = landscape)
 
+    // Full screen = landscape, even when the phone's auto-rotate is off. Leaving the player gives rotation back.
+    val toggleFullScreen = {
+        context.findActivity()?.requestedOrientation =
+            if (landscape) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val activity = context.findActivity()
+            // Rotating recreates the activity and disposes this too; that must not undo the rotation.
+            if (activity?.isChangingConfigurations != true) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
     val video = @Composable { modifier: Modifier ->
         VideoArea(
             vm = vm,
@@ -124,6 +144,11 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             controlsVisible = controlsVisible,
             onToggleControls = { controlsVisible = !controlsVisible },
             onLongPress = { current?.let { menuFor = it } },
+            showQuality = showQuality,
+            stats = stats,
+            fullScreen = landscape,
+            onToggleQuality = vm::toggleQuality,
+            onToggleFullScreen = toggleFullScreen,
             onBack = onBack,
             modifier = modifier,
         )
@@ -164,6 +189,11 @@ private fun VideoArea(
     controlsVisible: Boolean,
     onToggleControls: () -> Unit,
     onLongPress: () -> Unit,
+    showQuality: Boolean,
+    stats: StreamStats,
+    fullScreen: Boolean,
+    onToggleQuality: () -> Unit,
+    onToggleFullScreen: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier,
 ) {
@@ -216,6 +246,8 @@ private fun VideoArea(
             }
         }
 
+        if (showQuality) QualityBadge(stats, Modifier.align(Alignment.BottomStart).padding(8.dp))
+
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -239,7 +271,22 @@ private fun VideoArea(
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
+                    IconButton(onClick = onToggleQuality) {
+                        Icon(
+                            Icons.Filled.Info,
+                            stringResource(if (showQuality) R.string.quality_hide else R.string.quality_show),
+                            tint = if (showQuality) MaterialTheme.colorScheme.primaryContainer else Color.White,
+                        )
+                    }
+                    IconButton(onClick = onToggleFullScreen) {
+                        Icon(
+                            if (fullScreen) PlayerIcons.FullscreenExit else PlayerIcons.Fullscreen,
+                            stringResource(if (fullScreen) R.string.exit_full_screen else R.string.full_screen),
+                            tint = Color.White,
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier

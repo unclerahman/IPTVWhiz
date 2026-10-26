@@ -3,6 +3,7 @@ package com.iptvwhiz.app.player
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -11,7 +12,10 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /** Why a channel can't play, for a plain-language message. */
 enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Other }
@@ -33,6 +38,17 @@ data class LivePlayerState(
     val problem: PlaybackProblem? = null,
     /** Technical detail shown under the friendly message, e.g. "HTTP 403". */
     val detail: String? = null,
+)
+
+/** What is actually arriving and being shown right now, for the quality overlay. 0 = not known yet. */
+data class StreamStats(
+    val width: Int = 0,
+    val height: Int = 0,
+    /** Frames shown per second (measured; the stream's own rate until measured). */
+    val fps: Float = 0f,
+    /** Data received per second, in megabits. */
+    val mbps: Float = 0f,
+    val droppedFrames: Int = 0,
 )
 
 /**
@@ -68,6 +84,34 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     val state: StateFlow<LivePlayerState> = _state.asStateFlow()
 
     private val handler = Handler(Looper.getMainLooper())
+
+    // Quality overlay: sampled once a second, and only while it is switched on.
+    private val statsHandler = Handler(Looper.getMainLooper())
+    private val bytesReceived = AtomicLong()
+    private var statsOn = false
+    private var lastSampleAt = 0L
+    private var lastBytes = 0L
+    private var lastRendered = 0
+    private val mbpsSamples = ArrayDeque<Float>()
+    private val fpsSamples = ArrayDeque<Float>()
+    private val _stats = MutableStateFlow(StreamStats())
+    val stats: StateFlow<StreamStats> = _stats.asStateFlow()
+
+    private val transferListener = object : TransferListener {
+        override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+        override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+        override fun onBytesTransferred(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+            if (isNetwork) bytesReceived.addAndGet(bytesTransferred.toLong())
+        }
+        override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+    }
+
+    private val statsTick = object : Runnable {
+        override fun run() {
+            sampleStats()
+            if (statsOn) statsHandler.postDelayed(this, STATS_MS)
+        }
+    }
     private var channel: Channel? = null
     private var forceHls = false
     private var retries = 0
@@ -124,12 +168,58 @@ class LivePlayer(context: Context, http: OkHttpClient) {
 
     fun release() {
         handler.removeCallbacksAndMessages(null)
+        statsHandler.removeCallbacksAndMessages(null)
         player.release()
+    }
+
+    /** Starts or stops the once-a-second quality sampling behind [stats]. */
+    fun setStatsEnabled(on: Boolean) {
+        if (on == statsOn) return
+        statsOn = on
+        statsHandler.removeCallbacksAndMessages(null)
+        if (on) {
+            lastSampleAt = 0L
+            mbpsSamples.clear()
+            fpsSamples.clear()
+            statsHandler.post(statsTick)
+        } else {
+            _stats.value = StreamStats()
+        }
+    }
+
+    private fun sampleStats() {
+        val now = SystemClock.elapsedRealtime()
+        val bytes = bytesReceived.get()
+        val counters = player.videoDecoderCounters
+        counters?.ensureUpdated()
+        val rendered = counters?.renderedOutputBufferCount ?: 0
+        val seconds = (now - lastSampleAt) / 1000f
+        if (lastSampleAt != 0L && seconds > 0.2f) {
+            mbpsSamples.addLast((bytes - lastBytes) * 8f / 1_000_000f / seconds)
+            // A new channel starts new counters; skip that one sample.
+            if (rendered >= lastRendered) fpsSamples.addLast((rendered - lastRendered) / seconds)
+            while (mbpsSamples.size > SMOOTHING) mbpsSamples.removeFirst()
+            while (fpsSamples.size > SMOOTHING) fpsSamples.removeFirst()
+        }
+        lastSampleAt = now
+        lastBytes = bytes
+        lastRendered = rendered
+        val size = player.videoSize
+        val declaredFps = player.videoFormat?.frameRate?.takeIf { it > 0f } ?: 0f
+        val measuredFps = if (player.isPlaying) fpsSamples.takeIf { it.isNotEmpty() }?.average()?.toFloat() ?: 0f else 0f
+        _stats.value = StreamStats(
+            width = size.width,
+            height = size.height,
+            fps = if (measuredFps > 0f) measuredFps else declaredFps,
+            mbps = mbpsSamples.takeIf { it.isNotEmpty() }?.average()?.toFloat() ?: 0f,
+            droppedFrames = counters?.droppedBufferCount ?: 0,
+        )
     }
 
     private fun load() {
         val channel = channel ?: return
         val dataSourceFactory = OkHttpDataSource.Factory(streamHttp)
+            .setTransferListener(transferListener)
             .setUserAgent(channel.userAgent ?: AppContainer.USER_AGENT)
             .apply {
                 channel.referrer?.let { setDefaultRequestProperties(mapOf("Referer" to it)) }
@@ -191,6 +281,9 @@ class LivePlayer(context: Context, http: OkHttpClient) {
 
     private companion object {
         const val MAX_RETRIES = 3
+        const val STATS_MS = 1_000L
+        /** Seconds averaged for the overlay, so the numbers don't jitter. */
+        const val SMOOTHING = 3
 
         val NETWORK_ERRORS = setOf(
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,

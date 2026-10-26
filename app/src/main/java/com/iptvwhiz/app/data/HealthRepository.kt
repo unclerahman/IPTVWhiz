@@ -11,6 +11,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -41,6 +42,9 @@ class HealthRepository(private val db: AppDatabase, http: OkHttpClient) {
         dao.observeSince(System.currentTimeMillis() - MAX_AGE).map { rows ->
             rows.associate { ChannelRef(it.playlistId, it.stableKey) to it.status }
         }
+
+    /** Channels the last checks found blocked (within [MAX_AGE]). */
+    suspend fun blockedNow(): Set<ChannelRef> = statuses().first().blockedRefs()
 
     suspend fun record(channel: Channel, status: HealthStatus) =
         dao.record(ChannelHealth(channel.playlistId, channel.stableKey, status, System.currentTimeMillis()))
@@ -110,6 +114,9 @@ class HealthRepository(private val db: AppDatabase, http: OkHttpClient) {
         const val MAX_AGE = 7 * 24 * 3_600_000L
     }
 }
+
+fun Map<ChannelRef, HealthStatus>.blockedRefs(): Set<ChannelRef> =
+    filterValues { it == HealthStatus.Blocked }.keys
 
 /** Turns an HTTP answer into a health status. Separate so it can be tested without a network. */
 object HealthProbe {

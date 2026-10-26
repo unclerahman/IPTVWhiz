@@ -6,6 +6,8 @@ import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.ChannelRef
 import com.iptvwhiz.app.data.ChannelSearch
 import com.iptvwhiz.app.data.SearchFilters
+import com.iptvwhiz.app.data.blockedRefs
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.data.Watchlist
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
@@ -34,8 +36,11 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     private val visibleChannels = combine(
         container.db.watchlists().observeAllChannels(),
         container.overlay.hiddenGroups(),
-    ) { channels, hiddenGroups ->
-        channels.filter { !it.hidden && (it.playlistId to it.groupTitle) !in hiddenGroups }
+        container.health.statuses(),
+        container.prefs.hideBlocked,
+    ) { channels, hiddenGroups, health, hideBlocked ->
+        val blocked = if (hideBlocked) health.blockedRefs() else emptySet()
+        channels.filter { !it.hidden && (it.playlistId to it.groupTitle) !in hiddenGroups && it.ref !in blocked }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _filters = MutableStateFlow(SearchFilters())

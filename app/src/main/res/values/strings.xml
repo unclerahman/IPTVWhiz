@@ -118,6 +118,8 @@
     <string name="settings_epg_desc">Guide sources and update schedule</string>
     <string name="settings_manage">Manage channels</string>
     <string name="settings_manage_desc">Hide, rename, sort and group channels</string>
+    <string name="settings_viewing">Viewing options</string>
+    <string name="settings_viewing_desc">Video quality info and blocked channels</string>
     <string name="settings_player">Player</string>
     <string name="settings_player_desc">Buffer, decoder and aspect ratio</string>
     <string name="settings_appearance">Appearance</string>
@@ -268,6 +270,17 @@
     <string name="health_working">Working</string>
     <string name="health_offline">Offline</string>
     <string name="health_blocked">Blocked</string>
+    <string name="viewing_quality_title">Show video quality</string>
+    <string name="viewing_quality_desc">Resolution, frames per second and Mbps over the video while it plays. You can also switch it on and off in the player.</string>
+    <string name="viewing_blocked_title">Hide blocked channels</string>
+    <string name="viewing_blocked_desc">Channels that Check channels found blocked are left out of Live TV, search and channel zapping. They stay in your watchlists and in Manage channels, where you can bring them back.</string>
+    <string name="toggle_on">On</string>
+    <string name="toggle_off">Off</string>
+    <string name="quality_show">Show quality info</string>
+    <string name="quality_hide">Hide quality info</string>
+    <string name="quality_measuring">Measuring…</string>
+    <string name="full_screen">Full screen</string>
+    <string name="exit_full_screen">Exit full screen</string>
     <string name="health_check">Check channels</string>
     <string name="health_checking">Checking %1$d of %2$d…</string>
     <string name="health_stop">Stop</string>

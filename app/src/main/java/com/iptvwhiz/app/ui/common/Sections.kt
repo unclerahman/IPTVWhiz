@@ -30,6 +30,7 @@ val settingsEntries = listOf(
     SettingsEntry(R.string.settings_epg, R.string.settings_epg_desc, Routes.EPG),
     SettingsEntry(R.string.settings_manage, R.string.settings_manage_desc, Routes.MANAGE),
     SettingsEntry(R.string.settings_watchlists, R.string.settings_watchlists_desc, Routes.WATCHLISTS),
+    SettingsEntry(R.string.settings_viewing, R.string.settings_viewing_desc, Routes.VIEWING),
     SettingsEntry(R.string.settings_player, R.string.settings_player_desc),
     SettingsEntry(R.string.settings_appearance, R.string.settings_appearance_desc),
     SettingsEntry(R.string.settings_backup, R.string.settings_backup_desc, Routes.BACKUP),
