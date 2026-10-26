@@ -104,4 +104,17 @@ class M3uParserTest {
         M3uParser.parse(text.reader().buffered()) { reported += it }
         assertEquals(listOf(500, 1000, 1200), reported)
     }
+
+    @Test
+    fun `a web page is not read as channels`() {
+        val page = "<!DOCTYPE html>\n<html>\n<head>\n<title>playlist.m3u - GitHub</title>\n</head>\n<body>Not found</body>\n</html>\n"
+        assertEquals(0, parse(page).entries.size)
+    }
+
+    @Test
+    fun `stray text between EXTINF and link is skipped`() {
+        val entry = parse("#EXTM3U\n#EXTINF:-1,News\nsome junk line\nrtmp://host/live/news\n").entries.single()
+        assertEquals("News", entry.name)
+        assertEquals("rtmp://host/live/news", entry.url)
+    }
 }

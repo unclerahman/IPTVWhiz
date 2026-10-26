@@ -187,7 +187,7 @@ private fun VideoArea(
                 )
             },
     ) {
-        PlayerSurface(vm.livePlayer.player, Modifier.fillMaxSize())
+        PlayerSurface(vm.livePlayer.player, Modifier.fillMaxSize(), textureView = true)
 
         if (state.buffering && state.problem == null) {
             CircularProgressIndicator(color = Color.White, modifier = Modifier.align(Alignment.Center))

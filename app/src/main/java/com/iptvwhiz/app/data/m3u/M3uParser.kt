@@ -27,6 +27,9 @@ data class M3uPlaylist(
  */
 object M3uParser {
 
+    /** A stream link: any scheme (http, https, rtmp, rtsp, udp...) followed by "://". */
+    private val linkRegex = Regex("""^[A-Za-z][A-Za-z0-9+.-]*://\S+$""")
+
     private val attributeRegex = Regex("""([A-Za-z0-9_-]+)=(?:"((?:[^"\\]|\\.)*)"|([^\s",]+))""")
 
     fun parse(reader: BufferedReader, onProgress: ((Int) -> Unit)? = null): M3uPlaylist {
@@ -66,6 +69,9 @@ object M3uParser {
                     }
                 }
                 line.startsWith("#") -> Unit
+                // Anything else that isn't a link (e.g. the lines of a web page) is skipped, so a page
+                // opened by mistake reads as "not a playlist" instead of channels named "<html>".
+                !linkRegex.matches(line) -> Unit
                 else -> {
                     val current = info
                     val attrs = current?.attributes.orEmpty()

@@ -76,12 +76,13 @@ class HealthRepository(private val db: AppDatabase, http: OkHttpClient) {
     }
 
     private suspend fun probe(channel: Channel): HealthStatus = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(channel.streamUrl)
-            .header("User-Agent", channel.userAgent ?: AppContainer.USER_AGENT)
-            .apply { channel.referrer?.let { header("Referer", it) } }
-            .build()
         try {
+            // Inside the try: building the request throws for links that aren't http(s).
+            val request = Request.Builder()
+                .url(channel.streamUrl)
+                .header("User-Agent", channel.userAgent ?: AppContainer.USER_AGENT)
+                .apply { channel.referrer?.let { header("Referer", it) } }
+                .build()
             probeHttp.newCall(request).execute().use { response ->
                 val head = if (response.isSuccessful) response.body?.source()?.let { source ->
                     source.request(PEEK_BYTES)
@@ -96,7 +97,10 @@ class HealthRepository(private val db: AppDatabase, http: OkHttpClient) {
         } catch (e: IOException) {
             HealthStatus.Offline
         } catch (e: IllegalArgumentException) {
-            HealthStatus.Offline // not a valid URL
+            HealthStatus.Offline // not a valid URL, or a header value OkHttp rejects
+        } catch (e: Exception) {
+            // One odd channel must never stop the whole check (or crash the app).
+            HealthStatus.Offline
         }
     }
 
