@@ -28,4 +28,13 @@ internal object SchemaMigrations {
         db.execSQL("DROP VIEW IF EXISTS `channel_view`")
         db.execSQL("CREATE VIEW `channel_view` AS SELECT c.playlistId, c.stableKey, c.number,\n            COALESCE(o.customName, c.name) AS name, c.name AS originalName,\n            COALESCE(o.customLogo, c.logoUrl) AS logoUrl,\n            c.streamUrl, c.tvgId,\n            COALESCE(o.customGroup, c.groupTitle) AS groupTitle, c.groupTitle AS originalGroup,\n            c.userAgent, c.referrer, c.country,\n            COALESCE(o.hidden, 0) AS hidden, COALESCE(o.favorite, 0) AS favorite,\n            COALESCE(o.sortOrder, c.number) AS sortOrder\n        FROM channels c\n        LEFT JOIN channel_overrides o ON o.playlistId = c.playlistId AND o.stableKey = c.stableKey")
     }
+
+    fun schema4to5(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `channels` ADD COLUMN `drmType` TEXT")
+        db.execSQL("ALTER TABLE `channels` ADD COLUMN `drmKey` TEXT")
+        db.execSQL("ALTER TABLE `channels` ADD COLUMN `drmLicenseUrl` TEXT")
+        db.execSQL("ALTER TABLE `channels` ADD COLUMN `drmHeaders` TEXT")
+        db.execSQL("DROP VIEW IF EXISTS `channel_view`")
+        db.execSQL("CREATE VIEW `channel_view` AS SELECT c.playlistId, c.stableKey, c.number,\n            COALESCE(o.customName, c.name) AS name, c.name AS originalName,\n            COALESCE(o.customLogo, c.logoUrl) AS logoUrl,\n            c.streamUrl, c.tvgId,\n            COALESCE(o.customGroup, c.groupTitle) AS groupTitle, c.groupTitle AS originalGroup,\n            c.userAgent, c.referrer, c.country,\n            c.drmType, c.drmKey, c.drmLicenseUrl, c.drmHeaders,\n            COALESCE(o.hidden, 0) AS hidden, COALESCE(o.favorite, 0) AS favorite,\n            COALESCE(o.sortOrder, c.number) AS sortOrder\n        FROM channels c\n        LEFT JOIN channel_overrides o ON o.playlistId = c.playlistId AND o.stableKey = c.stableKey")
+    }
 }

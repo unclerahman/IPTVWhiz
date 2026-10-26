@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WatchlistEntity::class, WatchlistItem::class, ChannelHealth::class,
     ],
     views = [Channel::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

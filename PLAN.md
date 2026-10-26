@@ -241,7 +241,7 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 | M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1; quick menu (hold OK / Menu) done in 0.5.0. Still to do: audio/subtitle track picker, "inverse channel keys" setting. |
 | M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
 | M4 ✅ | EPG basics | XMLTV import, now/next in list and player. Done 2026-10-25 (plus a Now & next Guide tab). |
-| M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); viewing options ✅ (0.6.0, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
+| M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); viewing options ✅ (0.6.0, 2026-10-26); DRM playback ✅ (0.6.1, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
 | M6+ | Phase 2 features | Guide grid, catch-up, PIN (backup file ✅ 2026-10-25, multi-playlist ✅ in M1) |
 
 ---
@@ -419,6 +419,17 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - **Tests:** 50 JVM tests (3 new `QualityBadgeTest` cases for the chip text; the blocked filter test was already in the 0.5.1 tree at 47).
 - **Limits to remember:** FPS/Mbps are device- and stream-dependent; the TV emulator reported no FPS for Ora News. Some Free-TV channels still fail with `parsing manifest malformed` on the emulator (channel-side, not this change). Verify the Redmi TextureView fix on the real phone when possible.
 
+### Notes (0.6.1, 2026-10-26)
+
+- **DRM playback (§20) done**, after the owner reported some channels showing only a blank black screen. Those playlists carry Kodi's `#KODIPROP` lines with a ClearKey key or a Widevine/PlayReady license link.
+- **Parsing:** `data/drm/DrmInfo.kt` reads `inputstream.adaptive.license_type` / `license_key` per `#EXTINF` entry in `M3uParser`; the DRM state resets at each entry so it can't leak to the next channel. ClearKey accepts `<kid>:<key>` hex, a ready JSON key response, or a license URL. Widevine/PlayReady only accept a license URL. Headers after `|` use Kodi's `Name=Value&…` form.
+- **Storage:** four nullable columns on `channels` (`drmType`, `drmKey`, `drmLicenseUrl`, `drmHeaders`), also exposed by `channel_view`/`Channel`; database v5 with `MIGRATION_4_5` (`SchemaMigrations.schema4to5`).
+- **Playback:** `LivePlayer` sets a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` plus the playlist's headers. Provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`, so the device's own DRM modules do the work.
+- **Failure path:** a DRM channel with no usable key/license shows `PlaybackProblem.Drm` and the friendly card. Media3's 6000-range DRM errors also map to it. A DRM failure is **not** recorded as Offline by the health recorder, because it says nothing about whether the stream is alive.
+- **Verified** on the phone emulator with Google's public Shaka assets: ClearKey key, ClearKey license server, Widevine license server and a plain HLS channel all played; a broken ClearKey entry showed the message instead of a black screen. See CHANGELOG for the numbers.
+- **Tests:** 61 JVM tests (9 `DrmInfoTest`, 2 `M3uParserTest` DRM cases).
+- **Deliberate non-goals:** no key extraction from the device, no license-server bypass, no acceptance of raw Widevine/PlayReady keys. Only what the user's playlist provides is used.
+
 ---
 
 ## 19. Viewing options: quality overlay and blocked channels (0.6.0, 2026-10-26)
@@ -439,4 +450,50 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - Off by default. Turn it off and blocked channels come back everywhere immediately.
 
 **Not done:** no per-channel "ignore this block" flag, and hiding does not delete a health result. A channel can come back on its own when a later check or playback records a different status.
+
+---
+
+## 20. DRM playback: ClearKey and Widevine/PlayReady from the playlist (0.6.1, 2026-10-26)
+
+**Why:** the owner reported channels that open to a blank black screen. Those streams are encrypted (`cenc`), and the playlist already contains what Kodi uses to play them: `#KODIPROP` lines. Without a DRM session the player has nothing to decode, so it shows black instead of an error. The aim is to use the playlist's own DRM details, and to say so plainly when they don't work.
+
+**What a playlist can say**
+
+```m3u
+#EXTINF:-1 group-title="...",Channel name
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=<kid-hex>:<key-hex>
+https://server/stream.mpd
+
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#KODIPROP:inputstream.adaptive.license_key=https://server/license|User-Agent=Kodi/21
+```
+
+- `license_type` also accepts `org.w3.clearkey` and `com.microsoft.playready`.
+- ClearKey `license_key` can be:
+  - `<32 hex kid>:<32 hex key>` — turned into the W3C "temporary" JSON response Android's ClearKey module expects;
+  - a JSON response the playlist already spells out;
+  - a license URL, like Widevine/PlayReady.
+- A `|` starts optional request headers in Kodi's `Name=Value&Name=Value` form.
+
+**How it plays**
+
+- `data/drm/DrmInfo.kt` holds the model and parsing. `M3uParser` attaches a `DrmInfo` to each entry and resets it on every `#EXTINF`.
+- The data is stored on the channel (`drmType`, `drmKey`, `drmLicenseUrl`, `drmHeaders`) so it survives refresh and works offline; `channel_view` exposes it as `Channel`. Database v5.
+- `LivePlayer` builds a `DefaultDrmSessionManager` for the channel and installs it through `DefaultMediaSourceFactory.setDrmSessionManagerProvider`. The device's own DRM modules (`FrameworkMediaDrm.DEFAULT_PROVIDER`) do the decryption; the app only supplies keys/licenses.
+- `PlaybackProblem.Drm` (and Media3's 6000-range error codes) show "This channel is copy-protected…" with a short hint and **Try again**. The health recorder ignores DRM failures so a channel isn't marked Offline just because its key is wrong.
+
+**Limits, on purpose**
+
+- No key extraction, no license bypass, no key guessing: only data from the user's playlist.
+- Raw Widevine/PlayReady keys are rejected with a clear message. Those systems need a license server; a key alone cannot be used.
+- A device without the relevant DRM module (many cheap boxes and some emulators have no Widevine) can't play those channels; ClearKey works everywhere Android does.
+- The license request uses the channel's headers and user agent; it does not do per-provider device provisioning beyond what `FrameworkMediaDrm` does.
+
+**Legal note:** DRM support exists so the owner can watch channels their provider already authorises them to watch with the key details the provider supplied in the playlist. It is not a circumvention feature, and the app ships no keys.
+
+**Test assets (public, for development only):** `testdata/drm-test.m3u` uses Google's Shaka demo library:
+- ClearKey key and ClearKey license server: `angel-one-clearkey` with key `feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff` and license `https://cwip-shaka-proxy.appspot.com/clearkey?_u3wDe7erb7v8Lqt8A3QDQ=ABEiM0RVZneImaq7zN3u_w`.
+- Widevine: `angel-one-widevine` with `https://proxy.uat.widevine.com/proxy`.
+- Plus one broken ClearKey entry to check the error card, and a plain HLS channel as a no-DRM regression check.
 

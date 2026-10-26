@@ -1,5 +1,6 @@
 package com.iptvwhiz.app.data.m3u
 
+import com.iptvwhiz.app.data.drm.DrmType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -109,6 +110,40 @@ class M3uParserTest {
     fun `a web page is not read as channels`() {
         val page = "<!DOCTYPE html>\n<html>\n<head>\n<title>playlist.m3u - GitHub</title>\n</head>\n<body>Not found</body>\n</html>\n"
         assertEquals(0, parse(page).entries.size)
+    }
+
+    @Test
+    fun `KODIPROP DRM lines belong to their channel only`() {
+        val entries = parse(
+            """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="one",ClearKey channel
+            #KODIPROP:inputstream.adaptive.license_type=clearkey
+            #KODIPROP:inputstream.adaptive.license_key=feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff
+            https://example.com/one.mpd
+            #EXTINF:-1 tvg-id="two",Plain channel
+            https://example.com/two.m3u8
+            """.trimIndent(),
+        ).entries
+        assertEquals(DrmType.CLEAR_KEY, entries[0].drm?.type)
+        assertEquals(
+            """{"keys":[{"kty":"oct","k":"ABEiM0RVZneImaq7zN3u_w","kid":"_u3wDe7erb7v8Lqt8A3QDQ"}],"type":"temporary"}""",
+            entries[0].drm?.keyResponse,
+        )
+        assertNull(entries[1].drm)
+    }
+
+    @Test
+    fun `KODIPROP widevine license link with headers`() {
+        val entry = parse(
+            "#EXTINF:-1,Widevine\n" +
+                "#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\n" +
+                "#KODIPROP:inputstream.adaptive.license_key=https://license.example/wp|User-Agent=Kodi/21\n" +
+                "https://example.com/wp.mpd\n",
+        ).entries.single()
+        assertEquals(DrmType.WIDEVINE, entry.drm?.type)
+        assertEquals("https://license.example/wp", entry.drm?.licenseUrl)
+        assertEquals("Kodi/21", entry.drm?.headers?.get("User-Agent"))
     }
 
     @Test

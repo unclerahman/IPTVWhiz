@@ -69,6 +69,7 @@ data class GroupSetting(
             c.streamUrl, c.tvgId,
             COALESCE(o.customGroup, c.groupTitle) AS groupTitle, c.groupTitle AS originalGroup,
             c.userAgent, c.referrer, c.country,
+            c.drmType, c.drmKey, c.drmLicenseUrl, c.drmHeaders,
             COALESCE(o.hidden, 0) AS hidden, COALESCE(o.favorite, 0) AS favorite,
             COALESCE(o.sortOrder, c.number) AS sortOrder
         FROM channels c
@@ -93,6 +94,11 @@ data class Channel(
     val hidden: Boolean,
     val favorite: Boolean,
     val sortOrder: Double,
+    /** DRM from the provider playlist; see [com.iptvwhiz.app.data.drm.drmInfo]. */
+    val drmType: String? = null,
+    val drmKey: String? = null,
+    val drmLicenseUrl: String? = null,
+    val drmHeaders: String? = null,
 )
 
 /**

@@ -112,8 +112,9 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
                 val status = when (state.problem) {
                     PlaybackProblem.Blocked -> HealthStatus.Blocked
                     PlaybackProblem.Offline, PlaybackProblem.Unsupported -> HealthStatus.Offline
-                    // No connection is about this device's network, not the channel.
-                    PlaybackProblem.NoConnection, PlaybackProblem.Other -> null
+                    // No connection is about this device's network, not the channel; DRM means
+                    // we could not unlock it, not that the stream is dead.
+                    PlaybackProblem.NoConnection, PlaybackProblem.Other, PlaybackProblem.Drm -> null
                     null -> if (!state.buffering && livePlayer.player.isPlaying) HealthStatus.Working else null
                 }
                 val entry = status?.let { ChannelRef(channel.playlistId, channel.stableKey) to it }

@@ -19,9 +19,18 @@ import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
+import androidx.media3.exoplayer.drm.MediaDrmCallback
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.drm.DrmInfo
+import com.iptvwhiz.app.data.drm.DrmType
+import com.iptvwhiz.app.data.drm.drmInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +40,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /** Why a channel can't play, for a plain-language message. */
-enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Other }
+enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Drm, Other }
 
 data class LivePlayerState(
     val buffering: Boolean = false,
@@ -218,6 +227,12 @@ class LivePlayer(context: Context, http: OkHttpClient) {
 
     private fun load() {
         val channel = channel ?: return
+        val drm = channel.drmInfo
+        if (drm != null && !drm.isValid) {
+            // A DRM channel with no usable key would otherwise sit on a black screen.
+            _state.value = LivePlayerState(problem = PlaybackProblem.Drm, detail = drm.problemHint)
+            return
+        }
         val dataSourceFactory = OkHttpDataSource.Factory(streamHttp)
             .setTransferListener(transferListener)
             .setUserAgent(channel.userAgent ?: AppContainer.USER_AGENT)
@@ -228,8 +243,10 @@ class LivePlayer(context: Context, http: OkHttpClient) {
             .setUri(channel.streamUrl)
             .apply { if (forceHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+            .setDrmSessionManagerProvider { drmSessionManager(drm, dataSourceFactory) }
         val source = try {
-            DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(item)
+            mediaSourceFactory.createMediaSource(item)
         } catch (e: IllegalStateException) {
             // A stream type with no player module in the app (e.g. RTSP, Smooth Streaming).
             _state.value = LivePlayerState(problem = PlaybackProblem.Unsupported)
@@ -238,6 +255,32 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         player.setMediaSource(source)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    /**
+     * Builds a Media3 DRM session for the current channel. ClearKey keys come straight from the
+     * playlist; Widevine and PlayReady get their keys from the playlist's license server. The app
+     * never tries to extract or guess a key.
+     */
+    private fun drmSessionManager(drm: DrmInfo?, dataSourceFactory: DataSource.Factory): DrmSessionManager {
+        if (drm == null || !drm.isValid) return DrmSessionManager.DRM_UNSUPPORTED
+        val uuid = when (drm.type) {
+            DrmType.CLEAR_KEY -> C.CLEARKEY_UUID
+            DrmType.WIDEVINE -> C.WIDEVINE_UUID
+            DrmType.PLAYREADY -> C.PLAYREADY_UUID
+        }
+        val callback: MediaDrmCallback = when {
+            drm.type == DrmType.CLEAR_KEY && drm.keyResponse != null ->
+                LocalMediaDrmCallback(drm.keyResponse.toByteArray(Charsets.UTF_8))
+            drm.licenseUrl != null ->
+                HttpMediaDrmCallback(drm.licenseUrl, dataSourceFactory).apply {
+                    drm.headers.forEach { (name, value) -> setKeyRequestProperty(name, value) }
+                }
+            else -> return DrmSessionManager.DRM_UNSUPPORTED
+        }
+        return DefaultDrmSessionManager.Builder()
+            .setUuidAndExoMediaDrmProvider(uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+            .build(callback)
     }
 
     private fun handleError(error: PlaybackException) {
@@ -270,6 +313,7 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         httpStatus() == 404 || httpStatus() == 410 -> PlaybackProblem.Offline
         httpStatus() in 400..499 -> PlaybackProblem.Blocked
         errorCode in NETWORK_ERRORS -> PlaybackProblem.NoConnection
+        errorCode in DRM_ERRORS -> PlaybackProblem.Drm
         errorCode in FORMAT_ERRORS || errorCode in DECODER_ERRORS -> PlaybackProblem.Unsupported
         else -> PlaybackProblem.Other
     }
@@ -303,6 +347,19 @@ class LivePlayer(context: Context, http: OkHttpClient) {
             PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        )
+
+        /** 6000–6008 in Media3: the stream is protected and the key did not arrive. */
+        val DRM_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_DRM_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED,
+            PlaybackException.ERROR_CODE_DRM_CONTENT_ERROR,
+            PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
+            PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION,
+            PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
+            PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED,
+            PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED,
         )
     }
 }

@@ -8,6 +8,7 @@ import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.db.ChannelEntity
 import com.iptvwhiz.app.data.db.PlaylistEntity
 import com.iptvwhiz.app.data.db.PlaylistType
+import com.iptvwhiz.app.data.drm.DrmInfoParser
 import com.iptvwhiz.app.data.m3u.M3uParser
 import com.iptvwhiz.app.data.m3u.M3uPlaylist
 import com.iptvwhiz.app.data.xtream.XtreamClient
@@ -166,6 +167,10 @@ class PlaylistRepository(
                 userAgent = entry.userAgent,
                 referrer = entry.referrer,
                 country = entry.country,
+                drmType = entry.drm?.type?.storage,
+                drmKey = entry.drm?.keyResponse,
+                drmLicenseUrl = entry.drm?.licenseUrl,
+                drmHeaders = entry.drm?.let { DrmInfoParser.storeHeaders(it.headers) },
             )
         }
         // Some playlists (e.g. Free-TV) list several guides; keep them all, comma-separated.

@@ -55,4 +55,12 @@ data class ChannelEntity(
     val referrer: String? = null,
     /** tvg-country from the playlist (two-letter code), when it has one. */
     val country: String? = null,
+    /** DRM scheme from Kodi `#KODIPROP` lines: "clearkey", "widevine" or "playready". */
+    val drmType: String? = null,
+    /** ClearKey: a ready-made W3C key response. Widevine/PlayReady never carry a key here. */
+    val drmKey: String? = null,
+    /** ClearKey/Widevine/PlayReady: license server URL. */
+    val drmLicenseUrl: String? = null,
+    /** Extra license-request headers, one `Name: Value` per line. */
+    val drmHeaders: String? = null,
 )

@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (50 at 0.6.0)
+./gradlew testReleaseUnitTest      # JVM tests (61 at 0.6.1)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -46,7 +46,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **One `:app` module, one APK:** the launcher picks the TV UI (`ui/tv`, androidx.tv-material 1.0) or the phone UI (`ui/mobile`, Material 3) via `DeviceType`. ViewModels in `ui/state` are shared.
 - **Hand-wired DI:** `AppContainer` holds the db, http, repositories, `playQueue` and `USER_AGENT` (VLC's; many servers 403 other agents). ViewModels are created with `appViewModel { container, savedState -> … }`.
 - **Data (`data/`):**
-  - Room 2.6.1 with KSP; schemas are exported to `app/schemas`. Currently **v4**.
+  - Room 2.6.1 with KSP; schemas are exported to `app/schemas`. Currently **v5**.
   - **The overlay model is the core idea.** Provider data (`channels`) is replaced on every refresh. User edits live in `channel_overrides` / `group_settings`, keyed by a **stable key** (`StableKeys.kt`), and are joined in the `channel_view` DatabaseView (`Overlay.kt`). That is why edits survive refreshes. `ChannelOrganizer` turns the view into groups and order.
   - Order uses fractional positions (`Positions.between`), so a move touches one row and merges cleanly.
   - Watchlists: `watchlists` + `watchlist_items` (playlistId, stableKey), using `ChannelRef` and `WatchlistRepository`. `FAVORITES_ID = 1` is built in.
@@ -54,10 +54,12 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
   - Search: `ChannelSearch` (pure, tested); `Channel.effectiveCountry`.
   - EPG: `data/epg`. `XmltvParser` (streaming), `EpgRepository` (max 10 links, `selectLinks`), daily `EpgWork`.
   - Backup: `data/backup`. JSON file, playlists matched by fingerprint, newest edit wins, format version 1 with optional fields.
+  - DRM: `data/drm/DrmInfo.kt` (pure, tested) parses Kodi `#KODIPROP` `license_type`/`license_key`; `M3uParser` attaches a `DrmInfo` per entry. Four nullable `drm*` columns on `channels`, exposed by `channel_view`.
   - Parsers: `M3uParser` (only accepts `scheme://` lines as links) and `XtreamClient`.
 - **Player (`player/LivePlayer.kt`):** Media3 1.5.1 ExoPlayer with OkHttp, HLS and DASH.
   - Per-channel user agent and referrer, short timeouts, retries with backoff, HLS fallback for links without `.m3u8`.
   - Errors are mapped to `PlaybackProblem`.
+  - DRM: a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys from the playlist use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` with the playlist's headers; provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`. `PlaybackProblem.Drm` covers the missing-key case and Media3's 6000-range errors; DRM failures are not recorded as Offline. The app never extracts or guesses keys (PLAN §20).
   - Video goes through `ui/common/PlayerSurface.kt`: SurfaceView on TV, TextureView on phone (black-screen fix for Xiaomi).
   - `StreamStats` + `setStatsEnabled()` feed the optional quality chip (`ui/common/QualityBadge.kt`): resolution/FPS from decoder counters, Mbps from a `TransferListener`, sampled once a second only while switched on.
 - **Viewing options:** `AppPrefs.showQuality` / `AppPrefs.hideBlocked`, edited in Settings → Viewing options (`ui/tv/TvViewingScreen.kt`, `ui/mobile/MobileViewingScreen.kt`, `ViewingViewModel`). Hide blocked is applied in `LiveViewModel`, `SearchViewModel` and `PlayerViewModel` (zapping) by `OrganizedPlaylist.without(blocked)`; watchlists and Manage keep blocked channels.
@@ -79,7 +81,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.6.0)
+## Current status (0.6.1)
 
 | Milestone | Status |
 |---|---|
@@ -89,7 +91,9 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | M3 manage | ✅ Done |
 | M4 EPG basics | ✅ Done |
 | Backup | ✅ Done |
-| M5 polish | ◐ Search, watchlists, health and the viewing options (quality chip, hide blocked, phone full screen) are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+| M5 polish | ◐ Search, watchlists, health, the viewing options (quality chip, hide blocked, phone full screen) and DRM playback are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+
+**0.6.1 (2026-10-26):** DRM playback for Kodi-style ClearKey and Widevine/PlayReady playlists (`#KODIPROP`), so protected channels play instead of a blank black screen; a friendly copy-protection card when the key/license doesn't work. Database v5 (four nullable DRM columns; v4 → v5 migration verified with an existing 0.6.0 database). Verified on the phone emulator with Google's Shaka demo assets — ClearKey key, ClearKey license server, Widevine license server and plain HLS all played. 61 JVM tests. See CHANGELOG and PLAN §20.
 
 **0.6.0 (2026-10-26):** quality overlay (phone top bar, TV quick menu), Settings → Viewing options with "Show video quality" and "Hide blocked channels", and a phone full-screen button that forces landscape. Verified on both emulators; see CHANGELOG for the numbers and PLAN §19 for the design. Database unchanged at v4. 50 JVM tests.
 
@@ -99,17 +103,19 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
    - If video is still black, ask whether sound plays and whether the spinner shows.
    - The new quality chip is a first diagnostic: if it shows numbers while the screen is black, the decoder is running and the problem is the surface.
    - Consider adding the quality chip to the "Playback info" idea in the quick menu (state, codec, decoder, last error) to diagnose devices remotely.
-2. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
-3. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
-4. **TV player Back:** on the error card, Back sometimes needs an extra press.
-5. **Settings:**
+2. **Ask the owner about 0.6.1:** whether the channels that used to show a black screen now play, and what the copy-protection card says if one still doesn't. Most real providers use Widevine, and a box without a Widevine module can't play those; ClearKey works everywhere.
+3. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
+4. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
+5. **TV player Back:** on the error card, Back sometimes needs an extra press.
+6. **Settings:**
    - Player: buffer size, decoder preference, aspect ratio, inverse channel keys.
    - Appearance: theme, text size.
    - Per-playlist user agent.
-6. **M2 leftovers:** audio and subtitle track picker.
-7. **Before Play Store:**
+7. **M2 leftovers:** audio and subtitle track picker.
+8. **DRM later, if asked:** show the DRM scheme (and that a channel is protected) in Manage channels, and let the user repair a license link for one channel. Do not add key extraction.
+9. **Before Play Store:**
    - Release keystore (keep it out of git; `*.keystore` and `keystore.properties` are ignored).
    - Move provider passwords from plain Room to Keystore-backed encryption.
    - Privacy policy; ads consent (UMP) when ads arrive; TV checklist.
-8. **Phase 2 (M6):** full guide grid, catch-up, PIN lock, a "set up from your phone" local web page for TV (PLAN §9).
-9. **Known limit:** the health probe can say Working when the playlist file answers but its segments are geo-blocked.
+10. **Phase 2 (M6):** full guide grid, catch-up, PIN lock, a "set up from your phone" local web page for TV (PLAN §9).
+11. **Known limit:** the health probe can say Working when the playlist file answers but its segments are geo-blocked.

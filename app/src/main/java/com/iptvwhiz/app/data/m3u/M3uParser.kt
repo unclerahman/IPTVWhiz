@@ -1,5 +1,7 @@
 package com.iptvwhiz.app.data.m3u
 
+import com.iptvwhiz.app.data.drm.DrmInfo
+import com.iptvwhiz.app.data.drm.DrmInfoParser
 import java.io.BufferedReader
 
 data class M3uEntry(
@@ -12,6 +14,8 @@ data class M3uEntry(
     val userAgent: String? = null,
     val referrer: String? = null,
     val country: String? = null,
+    /** ClearKey/Widevine/PlayReady data from Kodi `#KODIPROP` lines, when the playlist has any. */
+    val drm: DrmInfo? = null,
 )
 
 data class M3uPlaylist(
@@ -40,6 +44,8 @@ object M3uParser {
         var extGroup: String? = null
         var userAgent: String? = null
         var referrer: String? = null
+        var licenseType: String? = null
+        var licenseKey: String? = null
 
         reader.lineSequence().forEach { raw ->
             val line = raw.removePrefix("﻿").trim()
@@ -56,9 +62,21 @@ object M3uParser {
                     extGroup = null
                     userAgent = null
                     referrer = null
+                    licenseType = null
+                    licenseKey = null
                 }
                 line.startsWith("#EXTGRP:", ignoreCase = true) ->
                     extGroup = line.substringAfter(':').trim().ifEmpty { null }
+                line.startsWith("#KODIPROP:", ignoreCase = true) -> {
+                    // Kodi puts DRM details here, after the #EXTINF line and before the stream link.
+                    val option = line.substringAfter(':')
+                    val key = option.substringBefore('=').trim().lowercase()
+                    val value = option.substringAfter('=', "").trim().ifEmpty { null }
+                    if (DrmInfoParser.isDrmProperty(key)) {
+                        if (key == "inputstream.adaptive.license_type") licenseType = value
+                        if (key == "inputstream.adaptive.license_key") licenseKey = value
+                    }
+                }
                 line.startsWith("#EXTVLCOPT:", ignoreCase = true) -> {
                     val option = line.substringAfter(':')
                     val key = option.substringBefore('=').trim().lowercase()
@@ -88,11 +106,14 @@ object M3uParser {
                         userAgent = userAgent ?: attrs["user-agent"] ?: attrs["http-user-agent"],
                         referrer = referrer ?: attrs["http-referrer"],
                         country = attrs["tvg-country"]?.takeIf { it.isNotBlank() },
+                        drm = DrmInfoParser.fromKodiProperties(licenseType, licenseKey),
                     )
                     info = null
                     extGroup = null
                     userAgent = null
                     referrer = null
+                    licenseType = null
+                    licenseKey = null
                     if (onProgress != null && entries.size % 500 == 0) onProgress(entries.size)
                 }
             }

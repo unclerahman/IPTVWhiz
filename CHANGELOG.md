@@ -3,6 +3,31 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.1 (2026-10-26)
+
+**Added**
+- **DRM-protected channels now play** instead of showing a blank black screen, when your playlist carries the key details Kodi uses (`#KODIPROP` lines). This is exactly what the playlist says — the app never tries to find, guess or extract a key, and it does not bypass a license server.
+  - **ClearKey with the key in the playlist:** a `kid:key` pair in hex, or a ready-made JSON key response. The picture plays straight away.
+  - **ClearKey, Widevine and PlayReady with a license link:** the player asks that server for the key. A link can carry extra headers in Kodi's form, for example `https://server/license|User-Agent=Kodi/21&Referer=https://example/`.
+- **A plain message instead of a black screen** when a protected channel can't be unlocked (no key in the playlist, a key the device rejects, or a license server that says no). The card says the channel is copy-protected and suggests checking the key in the playlist.
+- DRM details are kept with each channel in the database, so they survive a refresh and are used every time you play that channel.
+
+**Notes and limits**
+- Only data from **your own playlist** is used. A raw Widevine/PlayReady key in a playlist is not accepted: those systems always need a license link, because only the license server can issue a usable key.
+- If a channel has DRM lines but no usable key or license link, it is treated as unplayable and shows the message above, not a silent black screen.
+- The DRM columns are nullable and empty for ordinary channels, so nothing changes for the rest of your list.
+
+**Tests:** 61 JVM tests (9 new for DRM parsing and keys, 2 new for `#KODIPROP` in the M3U parser).
+
+**Verified on the phone emulator (Android 15, 2026-10-26)** with Google's public Shaka demo streams (`testdata/drm-test.m3u`):
+- ClearKey key in the playlist: played, chip showed `768×576 · 25 fps · 2.3 Mbps`.
+- ClearKey license server: played, `768×576 · 25 fps · 1.5 Mbps`.
+- Widevine license server: played on this emulator, `768×576 · 25 fps · 2.8 Mbps`. A device without a usable Widevine module would show the copy-protection message instead.
+- Plain HLS with no DRM still played, `768×432 · 30 fps · 2.4 Mbps`.
+- A deliberately broken ClearKey entry showed "This channel is copy-protected…" with the detail `no ClearKey key in playlist` and a **Try again** button — no black screen.
+
+**Database:** v5. The v4 → v5 migration adds four nullable DRM columns to `channels` and rebuilds `channel_view`. Verified on the phone emulator that an existing 0.6.0 database (2 playlists, 2,058 channels) upgraded without losing anything.
+
 ## 0.6.0 (2026-10-26)
 
 **Added**

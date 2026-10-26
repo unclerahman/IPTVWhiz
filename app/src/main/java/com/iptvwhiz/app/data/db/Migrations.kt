@@ -36,7 +36,12 @@ object Migrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    /** v5: DRM details per channel (ClearKey/Widevine/PlayReady from Kodi `#KODIPROP`). */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) = SchemaMigrations.schema4to5(db)
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
     /** The built-in Favorites watchlist; also created on a fresh install (see AppDatabase). */
     fun createFavoritesWatchlist(db: SupportSQLiteDatabase) {

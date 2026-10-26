@@ -32,6 +32,7 @@ fun Context.playbackProblemMessage(problem: PlaybackProblem): String = getString
         PlaybackProblem.Blocked -> R.string.playback_blocked
         PlaybackProblem.NoConnection -> R.string.playback_no_connection
         PlaybackProblem.Unsupported -> R.string.playback_unsupported
+        PlaybackProblem.Drm -> R.string.playback_drm
         PlaybackProblem.Other -> R.string.playback_other
     },
 )

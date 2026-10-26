@@ -1,0 +1,21 @@
+#EXTM3U
+# Plain, legal test assets from Google's Shaka demo library (public ClearKey/Widevine test content).
+# Kodi-style DRM metadata is used so the app's #KODIPROP support can be checked end to end.
+#EXTINF:-1 tvg-id="drm.angel.key" tvg-name="Angel One ClearKey key" group-title="DRM test",1 Angel One (ClearKey key in playlist)
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd
+#EXTINF:-1 tvg-id="drm.angel.server" tvg-name="Angel One ClearKey server" group-title="DRM test",2 Angel One (ClearKey license server)
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=https://cwip-shaka-proxy.appspot.com/clearkey?_u3wDe7erb7v8Lqt8A3QDQ=ABEiM0RVZneImaq7zN3u_w
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd
+#EXTINF:-1 tvg-id="drm.angel.widevine" tvg-name="Angel One Widevine" group-title="DRM test",3 Angel One (Widevine license server)
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#KODIPROP:inputstream.adaptive.license_key=https://proxy.uat.widevine.com/proxy
+https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd
+#EXTINF:-1 tvg-id="drm.broken.key" tvg-name="Broken ClearKey" group-title="DRM test",5 Broken ClearKey (should show a DRM message)
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=not-a-key
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd
+#EXTINF:-1 tvg-id="drm.plain" tvg-name="Plain stream" group-title="DRM test",4 Plain HLS (no DRM)
+https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8
