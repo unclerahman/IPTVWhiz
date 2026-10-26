@@ -11,6 +11,7 @@ data class M3uEntry(
     val group: String? = null,
     val userAgent: String? = null,
     val referrer: String? = null,
+    val country: String? = null,
 )
 
 data class M3uPlaylist(
@@ -80,6 +81,7 @@ object M3uParser {
                         group = attrs["group-title"]?.takeIf { it.isNotBlank() } ?: extGroup,
                         userAgent = userAgent ?: attrs["user-agent"] ?: attrs["http-user-agent"],
                         referrer = referrer ?: attrs["http-referrer"],
+                        country = attrs["tvg-country"]?.takeIf { it.isNotBlank() },
                     )
                     info = null
                     extGroup = null

@@ -44,38 +44,51 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
+import com.iptvwhiz.app.data.ChannelRef
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.epg.NowNext
-import com.iptvwhiz.app.ui.common.ProgramProgress
-import androidx.tv.material3.LocalContentColor
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.ChannelLogo
-import com.iptvwhiz.app.ui.common.NoFavoritesText
+import com.iptvwhiz.app.ui.common.HealthDot
 import com.iptvwhiz.app.ui.common.NoPlaylistText
+import com.iptvwhiz.app.ui.common.NoWatchlistsText
+import com.iptvwhiz.app.ui.common.ProgramProgress
 import com.iptvwhiz.app.ui.common.formatCount
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
+import com.iptvwhiz.app.ui.common.watchlistName
 import com.iptvwhiz.app.ui.state.LiveViewModel
 import com.iptvwhiz.app.ui.state.appViewModel
 
 /**
- * TiviMate-style browser: groups on the left, the group's channels on the right.
- * Moving over a group shows its channels straight away; OK plays, long-press OK or Menu edits.
+ * TiviMate-style browser: lists on the left, their channels on the right. Moving over a list shows
+ * its channels straight away; OK plays, long-press OK or Menu edits.
+ * Live TV shows watchlists, All channels and the playlist's groups; [watchlistsOnly] shows just watchlists.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () -> Unit) {
+fun TvLiveContent(
+    onPlay: (Channel, browseKey: String) -> Unit,
+    onAddPlaylist: () -> Unit,
+    watchlistsOnly: Boolean = false,
+) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
     val context = LocalContext.current
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val playlist by vm.activePlaylist.collectAsStateWithLifecycle()
     val organized by vm.organized.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
-    val nowNext by vm.nowNext.collectAsStateWithLifecycle()
+    val guide by vm.guide.collectAsStateWithLifecycle()
+    val health by vm.health.collectAsStateWithLifecycle()
+    val favorites by vm.favorites.collectAsStateWithLifecycle()
 
     if (playlists == null) return
     val active = playlist
@@ -83,15 +96,28 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
         TvEmptyState(NoPlaylistText, actionLabel = stringResource(R.string.add_provider), onAction = onAddPlaylist)
         return
     }
+    val shownLists = if (watchlistsOnly) watchlists else watchlists.filter { it.entries.isNotEmpty() }
+    if (watchlistsOnly && watchlists.all { it.entries.isEmpty() }) {
+        TvEmptyState(NoWatchlistsText)
+        return
+    }
+    // The Watchlists section always shows a watchlist, never a group.
+    LaunchedEffect(watchlistsOnly, shownLists.firstOrNull()?.id) {
+        if (watchlistsOnly && OrganizedPlaylist.watchlistId(selectedGroup) == null) {
+            shownLists.firstOrNull()?.let { vm.selectGroup(OrganizedPlaylist.watchlistKey(it.id)) }
+        }
+    }
 
     var lastPlayedKey by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Channel?>(null) }
     val firstGroupFocus = remember { FocusRequester() }
+    val playlistNames = playlists.orEmpty().associate { it.id to it.name }
+    val inWatchlist = OrganizedPlaylist.watchlistId(selectedGroup) != null
 
     Row(Modifier.fillMaxSize()) {
         Column(Modifier.width(320.dp).fillMaxHeight()) {
             Text(
-                text = active.name,
+                text = if (watchlistsOnly) stringResource(R.string.nav_watchlists) else active.name,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -102,33 +128,34 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
                 modifier = Modifier.focusRestorer { firstGroupFocus },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                val favorites = organized?.favorites.orEmpty()
-                if (favorites.isNotEmpty()) {
-                    item(key = OrganizedPlaylist.FAVORITES) {
+                itemsIndexed(shownLists, key = { _, it -> OrganizedPlaylist.watchlistKey(it.id) }) { index, list ->
+                    val key = OrganizedPlaylist.watchlistKey(list.id)
+                    GroupRow(
+                        name = watchlistName(list),
+                        count = list.available.size,
+                        selected = selectedGroup == key,
+                        onFocused = { vm.selectGroup(key) },
+                        modifier = if (watchlistsOnly && index == 0) Modifier.focusRequester(firstGroupFocus) else Modifier,
+                    )
+                }
+                if (!watchlistsOnly) {
+                    item(key = OrganizedPlaylist.ALL) {
                         GroupRow(
-                            name = stringResource(R.string.nav_favorites),
-                            count = favorites.size,
-                            selected = selectedGroup == OrganizedPlaylist.FAVORITES,
-                            onFocused = { vm.selectGroup(OrganizedPlaylist.FAVORITES) },
+                            name = stringResource(R.string.all_channels),
+                            count = organized?.visibleCount ?: 0,
+                            selected = selectedGroup == OrganizedPlaylist.ALL,
+                            onFocused = { vm.selectGroup(OrganizedPlaylist.ALL) },
+                            modifier = Modifier.focusRequester(firstGroupFocus),
                         )
                     }
-                }
-                item(key = OrganizedPlaylist.ALL) {
-                    GroupRow(
-                        name = stringResource(R.string.all_channels),
-                        count = organized?.visibleCount ?: 0,
-                        selected = selectedGroup == OrganizedPlaylist.ALL,
-                        onFocused = { vm.selectGroup(OrganizedPlaylist.ALL) },
-                        modifier = Modifier.focusRequester(firstGroupFocus),
-                    )
-                }
-                items(groups, key = { it.key }) { group ->
-                    GroupRow(
-                        name = group.displayName,
-                        count = group.visibleCount,
-                        selected = selectedGroup == group.key,
-                        onFocused = { vm.selectGroup(group.key) },
-                    )
+                    items(groups, key = { it.key }) { group ->
+                        GroupRow(
+                            name = group.displayName,
+                            count = group.visibleCount,
+                            selected = selectedGroup == group.key,
+                            onFocused = { vm.selectGroup(group.key) },
+                        )
+                    }
                 }
             }
         }
@@ -136,9 +163,17 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
         Box(Modifier.weight(1f).fillMaxHeight()) {
             TvChannelList(
                 channels = channels,
-                guide = nowNext,
+                guide = guide,
+                health = health,
+                favorites = favorites,
+                subtitle = { channel ->
+                    when {
+                        inWatchlist && playlistNames.size > 1 -> "${playlistNames[channel.playlistId].orEmpty()} · ${channel.groupTitle}"
+                        inWatchlist || selectedGroup == OrganizedPlaylist.ALL -> channel.groupTitle
+                        else -> null
+                    }
+                },
                 listKey = selectedGroup,
-                showGroup = selectedGroup == OrganizedPlaylist.ALL || selectedGroup == OrganizedPlaylist.FAVORITES,
                 lastPlayedKey = lastPlayedKey,
                 onPlay = { channel ->
                     lastPlayedKey = channel.stableKey
@@ -150,57 +185,19 @@ fun TvLiveContent(onPlay: (Channel, group: String) -> Unit, onAddPlaylist: () ->
     }
 
     editing?.let { channel ->
+        val watchlistId = OrganizedPlaylist.watchlistId(selectedGroup)
         TvChannelEditor(
             channel = channel,
-            organized = organized,
+            watchlists = watchlists,
             edits = vm.edits,
             onDone = { editing = null },
             onNameTaken = { name ->
                 Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
             },
-        )
-    }
-}
-
-/** The Favorites section: just the favorite channels, playable and editable. */
-@Composable
-fun TvFavoritesContent(onPlay: (Channel, group: String) -> Unit) {
-    val vm = appViewModel { container, _ -> LiveViewModel(container) }
-    val context = LocalContext.current
-    val organized by vm.organized.collectAsStateWithLifecycle()
-    val nowNext by vm.nowNext.collectAsStateWithLifecycle()
-    var lastPlayedKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var editing by remember { mutableStateOf<Channel?>(null) }
-    val favorites = organized?.favorites ?: return
-
-    if (favorites.isEmpty()) {
-        TvEmptyState(NoFavoritesText)
-        return
-    }
-    Column {
-        Text(stringResource(R.string.nav_favorites), style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.size(16.dp))
-        TvChannelList(
-            channels = favorites,
-            guide = nowNext,
-            listKey = OrganizedPlaylist.FAVORITES,
-            showGroup = true,
-            lastPlayedKey = lastPlayedKey,
-            onPlay = { channel ->
-                lastPlayedKey = channel.stableKey
-                onPlay(channel, OrganizedPlaylist.FAVORITES)
-            },
-            onEdit = { editing = it },
-        )
-    }
-    editing?.let { channel ->
-        TvChannelEditor(
-            channel = channel,
-            organized = organized,
-            edits = vm.edits,
-            onDone = { editing = null },
-            onNameTaken = { name ->
-                Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
+            extraItems = if (watchlistId != null && watchlists.firstOrNull { it.id == watchlistId }?.isFavorites == false) {
+                listOf(TvMenuItem(stringResource(R.string.remove_from_watchlist)) { vm.edits.toggleWatchlist(watchlistId, channel) })
+            } else {
+                emptyList()
             },
         )
     }
@@ -212,14 +209,17 @@ fun TvFavoritesContent(onPlay: (Channel, group: String) -> Unit) {
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun TvChannelList(
+internal fun TvChannelList(
     channels: List<Channel>,
-    guide: Map<String, NowNext>,
+    guide: Map<ChannelRef, NowNext>,
+    health: Map<ChannelRef, HealthStatus>,
+    favorites: Set<ChannelRef>,
+    subtitle: (Channel) -> String?,
     listKey: String,
-    showGroup: Boolean,
     lastPlayedKey: String?,
     onPlay: (Channel) -> Unit,
     onEdit: (Channel) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (channels.isEmpty()) {
         Text(
@@ -238,10 +238,10 @@ private fun TvChannelList(
     }
     LazyColumn(
         state = listState,
-        modifier = Modifier.focusRestorer { firstChannelFocus },
+        modifier = modifier.focusRestorer { firstChannelFocus },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        itemsIndexed(channels, key = { _, it -> it.stableKey }) { index, channel ->
+        itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
             val requester = when {
                 channel.stableKey == lastPlayedKey -> lastPlayedFocus
                 index == 0 -> firstChannelFocus
@@ -249,8 +249,10 @@ private fun TvChannelList(
             }
             ChannelRow(
                 channel = channel,
-                programme = guide[channel.stableKey],
-                showGroup = showGroup,
+                programme = guide[channel.ref],
+                health = health[channel.ref],
+                isFavorite = channel.ref in favorites,
+                subtitle = subtitle(channel),
                 onClick = { onPlay(channel) },
                 onLongClick = { onEdit(channel) },
                 modifier = if (requester != null) Modifier.focusRequester(requester) else Modifier,
@@ -285,10 +287,12 @@ private fun GroupRow(
 }
 
 @Composable
-private fun ChannelRow(
+internal fun ChannelRow(
     channel: Channel,
     programme: NowNext?,
-    showGroup: Boolean,
+    health: HealthStatus?,
+    isFavorite: Boolean,
+    subtitle: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -318,15 +322,18 @@ private fun ChannelRow(
             }
         },
         headlineContent = {
-            Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                HealthDot(health, Modifier.padding(start = 10.dp))
+            }
         },
-        // What's on beats the group name; the group name only helps in mixed lists.
+        // What's on beats the subtitle (group or playlist name).
         supportingContent = when {
             programme?.now != null -> { { NowLine(programme) } }
-            showGroup -> { { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+            subtitle != null -> { { Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
             else -> null
         },
-        trailingContent = if (channel.favorite) {
+        trailingContent = if (isFavorite) {
             { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
         } else {
             null

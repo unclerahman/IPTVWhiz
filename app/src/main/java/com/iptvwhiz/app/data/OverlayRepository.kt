@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 
 /** The user's edits: hide, rename, favorite, regroup and reorder channels and groups. */
 class OverlayRepository(private val db: AppDatabase) {
@@ -22,11 +23,31 @@ class OverlayRepository(private val db: AppDatabase) {
     suspend fun organizedNow(playlistId: Long): OrganizedPlaylist =
         OrganizedPlaylist.build(dao.channels(playlistId), dao.groupSettings(playlistId))
 
+    /** Hidden groups of every playlist, as (playlistId, group key). */
+    fun hiddenGroups(): Flow<Set<Pair<Long, String>>> =
+        dao.observeHiddenGroups().map { rows -> rows.map { it.playlistId to it.name }.toSet() }
+
     // Channels
 
     suspend fun setHidden(channel: Channel, hidden: Boolean) = editChannel(channel) { it.copy(hidden = hidden) }
 
-    suspend fun setFavorite(channel: Channel, favorite: Boolean) = editChannel(channel) { it.copy(favorite = favorite) }
+    /** Hides or shows many channels at once (e.g. every offline channel after a check). */
+    suspend fun setHiddenAll(channels: List<Channel>, hidden: Boolean) {
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            channels.groupBy { it.playlistId }.forEach { (playlistId, inPlaylist) ->
+                inPlaylist.chunked(QUERY_CHUNK).forEach { chunk ->
+                    val existing = dao.overrides(playlistId, chunk.map { it.stableKey }).associateBy { it.stableKey }
+                    dao.upsertAll(
+                        chunk.map { channel ->
+                            (existing[channel.stableKey] ?: ChannelOverride(playlistId, channel.stableKey))
+                                .copy(hidden = hidden, updatedAt = now)
+                        },
+                    )
+                }
+            }
+        }
+    }
 
     /** Blank or the original name resets to the provider's name. */
     suspend fun rename(channel: Channel, name: String) = editChannel(channel) {

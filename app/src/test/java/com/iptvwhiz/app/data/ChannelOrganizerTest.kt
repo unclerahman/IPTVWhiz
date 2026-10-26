@@ -1,7 +1,6 @@
 package com.iptvwhiz.app.data
 
 import com.iptvwhiz.app.data.OrganizedPlaylist.Companion.ALL
-import com.iptvwhiz.app.data.OrganizedPlaylist.Companion.FAVORITES
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.GroupSetting
 import org.junit.Assert.assertEquals
@@ -23,7 +22,7 @@ class ChannelOrganizerTest {
     ) = Channel(
         playlistId = 1, stableKey = "k$number", number = number, name = name, originalName = name,
         logoUrl = null, streamUrl = "http://s/$number", tvgId = null, groupTitle = group,
-        originalGroup = originalGroup, userAgent = null, referrer = null,
+        originalGroup = originalGroup, userAgent = null, referrer = null, country = null,
         hidden = hidden, favorite = favorite, sortOrder = sortOrder,
     )
 
@@ -106,17 +105,11 @@ class ChannelOrganizerTest {
     }
 
     @Test
-    fun `favorites follow display order and skip hidden channels`() {
-        val p = OrganizedPlaylist.build(
-            listOf(
-                news1.copy(favorite = true),
-                sport3.copy(favorite = true),
-                sport4.copy(favorite = true, hidden = true),
-                kids5.copy(favorite = true),
-            ),
-            listOf(GroupSetting(1, "Kids", sortOrder = 0.0)),
-        )
-        assertEquals(listOf(5, 1, 3), names(p.browse(FAVORITES)))
+    fun `watchlist keys round-trip and never clash with groups`() {
+        val key = OrganizedPlaylist.watchlistKey(42)
+        assertEquals(42L, OrganizedPlaylist.watchlistId(key))
+        assertNull(OrganizedPlaylist.watchlistId("News"))
+        assertNull(OrganizedPlaylist.watchlistId(ALL))
     }
 
     @Test

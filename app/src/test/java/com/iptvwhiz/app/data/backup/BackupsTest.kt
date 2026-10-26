@@ -52,7 +52,9 @@ class BackupsTest {
         val applied = Backups.channelsToApply(1, local, incoming)
         assertEquals(listOf("b", "c"), applied.map { it.stableKey })
         assertFalse(applied[0].hidden)
-        assertTrue(applied[0].favorite)
+        // Favorites moved to the Favorites watchlist; the old flag is only read for that.
+        assertFalse(applied[0].favorite)
+        assertEquals(listOf("b", "c"), Backups.legacyFavorites(BackupPlaylist("f", "n", PlaylistType.M3U_URL, channels = incoming)))
     }
 
     @Test

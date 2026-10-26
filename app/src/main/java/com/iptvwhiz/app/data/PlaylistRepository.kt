@@ -165,6 +165,7 @@ class PlaylistRepository(
                 groupTitle = group,
                 userAgent = entry.userAgent,
                 referrer = entry.referrer,
+                country = entry.country,
             )
         }
         // Some playlists (e.g. Free-TV) list several guides; keep them all, comma-separated.

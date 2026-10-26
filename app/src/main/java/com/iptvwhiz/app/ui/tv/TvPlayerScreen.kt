@@ -1,6 +1,7 @@
 package com.iptvwhiz.app.ui.tv
 
 import com.iptvwhiz.app.ui.common.groupLabel
+import com.iptvwhiz.app.ui.Routes
 import android.view.KeyEvent as AndroidKeyEvent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -92,8 +93,13 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
     val groupName by vm.groupName.collectAsStateWithLifecycle()
     val programme by vm.programme.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
 
     var listVisible by remember { mutableStateOf(false) }
+    /** The channel whose quick menu is open (long-press OK / Menu), if any. */
+    var menuFor by remember { mutableStateOf<Channel?>(null) }
+    /** Set while OK is held down long enough to count as a long press. */
+    var okHeld by remember { mutableStateOf(false) }
     var bannerToken by remember { mutableIntStateOf(0) }
     var bannerVisible by remember { mutableStateOf(false) }
     var digits by remember { mutableStateOf("") }
@@ -118,8 +124,8 @@ fun TvPlayerScreen(onBack: () -> Unit) {
         }
         digits = ""
     }
-    LaunchedEffect(listVisible, playerState.problem) {
-        if (!listVisible && playerState.problem == null) rootFocus.requestFocusWhenReady()
+    LaunchedEffect(listVisible, playerState.problem, menuFor) {
+        if (!listVisible && menuFor == null && playerState.problem == null) rootFocus.requestFocusWhenReady()
     }
 
     // Back closes the list first; otherwise navigation pops the player as usual.
@@ -133,13 +139,29 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             .focusable()
             .onKeyEvent { event ->
                 // While the list is open, the D-pad belongs to the list.
-                if (listVisible || event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (listVisible) return@onKeyEvent false
+                val isOk = event.key == Key.DirectionCenter || event.key == Key.Enter
+                // OK: a short press opens the channel list (on release); holding it opens the quick menu.
+                if (isOk) {
+                    when {
+                        event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount > 0 && !okHeld -> {
+                            okHeld = true
+                            menuFor = current
+                        }
+                        event.type == KeyEventType.KeyUp -> if (okHeld) okHeld = false else listVisible = true
+                    }
+                    return@onKeyEvent true
+                }
+                if (event.key == Key.Menu) {
+                    if (event.type == KeyEventType.KeyUp) menuFor = current
+                    return@onKeyEvent true
+                }
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val keyCode = event.nativeKeyEvent.keyCode
                 when {
                     event.key == Key.DirectionUp || event.key == Key.ChannelUp -> { vm.next(); true }
                     event.key == Key.DirectionDown || event.key == Key.ChannelDown -> { vm.previous(); true }
-                    event.key == Key.DirectionCenter || event.key == Key.Enter ||
-                        event.key == Key.DirectionLeft || event.key == Key.Menu -> { listVisible = true; true }
+                    event.key == Key.DirectionLeft -> { listVisible = true; true }
                     event.key == Key.DirectionRight || event.key == Key.Info -> { bannerToken++; true }
                     keyCode in AndroidKeyEvent.KEYCODE_0..AndroidKeyEvent.KEYCODE_9 -> {
                         digits = (digits + (keyCode - AndroidKeyEvent.KEYCODE_0)).takeLast(4)
@@ -186,12 +208,28 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             exit = slideOutHorizontally { -it } + fadeOut(),
         ) {
             ChannelListOverlay(
-                title = groupLabel(vm.group, groupName),
+                title = when (vm.sourceKind) {
+                    Routes.SOURCE_QUEUE -> stringResource(R.string.search_results)
+                    else -> groupLabel(vm.group, groupName)
+                },
                 channels = channels,
                 currentIndex = index,
                 onSelect = { i ->
                     vm.playAt(i)
                     listVisible = false
+                },
+                onLongPress = { menuFor = it },
+            )
+        }
+
+        menuFor?.let { channel ->
+            TvChannelEditor(
+                channel = channel,
+                watchlists = watchlists,
+                edits = vm.edits,
+                onDone = { menuFor = null },
+                onNameTaken = { name ->
+                    Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
                 },
             )
         }
@@ -287,6 +325,7 @@ private fun ChannelListOverlay(
     channels: List<Channel>,
     currentIndex: Int,
     onSelect: (Int) -> Unit,
+    onLongPress: (Channel) -> Unit,
 ) {
     val currentFocus = remember { FocusRequester() }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (currentIndex - 4).coerceAtLeast(0))
@@ -312,6 +351,7 @@ private fun ChannelListOverlay(
                 ListItem(
                     selected = i == currentIndex,
                     onClick = { onSelect(i) },
+                    onLongClick = { onLongPress(channel) },
                     modifier = if (i == currentIndex) Modifier.focusRequester(currentFocus) else Modifier,
                     scale = ListItemDefaults.scale(focusedScale = 1.02f),
                     leadingContent = {

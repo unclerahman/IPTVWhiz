@@ -36,6 +36,7 @@ import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.data.epg.EpgRepository
 import com.iptvwhiz.app.data.epg.EpgWork
 import com.iptvwhiz.app.ui.common.ChannelLogo
@@ -56,9 +57,9 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
     val context = LocalContext.current
     val organized by vm.organized.collectAsStateWithLifecycle()
-    val guide by vm.nowNext.collectAsStateWithLifecycle()
+    val guide by vm.guide.collectAsStateWithLifecycle()
     val channels = remember(organized, guide) {
-        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.stableKey] != null }
+        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.ref] != null }
     }
 
     if (channels.isEmpty()) {
@@ -70,7 +71,7 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
         Spacer(Modifier.size(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(channels, key = { it.stableKey }) { channel ->
-                val programme = guide[channel.stableKey]
+                val programme = guide[channel.ref]
                 ListItem(
                     selected = false,
                     onClick = { onPlay(channel, OrganizedPlaylist.ALL) },

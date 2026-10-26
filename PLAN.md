@@ -241,7 +241,7 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 | M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1. Still to do: long-press OK quick menu, audio/subtitle track picker, "inverse channel keys" setting. |
 | M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
 | M4 ✅ | EPG basics | XMLTV import, now/next in list and player. Done 2026-10-25 (plus a Now & next Guide tab). |
-| M5 | Polish & release | Search, favorites, settings, error states, store assets → **v1.0** |
+| M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
 | M6+ | Phase 2 features | Guide grid, catch-up, PIN (backup file ✅ 2026-10-25, multi-playlist ✅ in M1) |
 
 ---
@@ -330,3 +330,72 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 ## 17. Remaining open questions
 
 1. Which devices you'll test on first (TV box model + phone)?
+
+---
+
+## 18. Watchlists: your own channel lists across playlists (planned 2026-10-26, done in 0.5.0)
+
+**Today:** the app shows one playlist at a time, and Favorites belong to that playlist. You can't combine channels from two providers into one list.
+
+**Goal:** a *Watchlist* is a list you build yourself from channels in **any** of your playlists (for example "Sports" with channels from provider A and B). You open it, zap through it and see the TV guide like any group. It's called a Watchlist so it's clearly different from the provider's *playlists*.
+
+### How it works for the user
+
+- **Adding:** long-press (TV: hold OK or press Menu) any channel, wherever it appears, and choose **Add to watchlist**: pick a list, or "New watchlist…". This works in:
+  - the Live TV channel lists and the Guide tab (already have a long-press menu: one new entry);
+  - **the player itself** (new): with the video playing, hold OK / press Menu on TV, or long-press the video on a phone, to open a quick menu for the channel that's playing: *Add to watchlist*, *Add to / remove from favorites*, *Hide channel*, *Rename*;
+  - the player's channel list overlay (TV) and the channel list under the video (phone portrait).
+- **Watching:** watchlists appear at the top of Live TV, before Favorites and All channels, no matter which playlist is active, and in their own section. Zapping (▲▼ / swipe) moves through the watchlist, switching provider silently when needed. Each channel shows a small label with its playlist's name.
+- **Managing:** Settings → Watchlists: create, rename, reorder, delete lists; inside a list, reorder (TV move mode / phone drag, as in Manage channels) and remove channels.
+- A channel can be in several watchlists. Removing it from a watchlist never touches the provider's playlist.
+
+### Design
+
+| Piece | Plan |
+|---|---|
+| Data | `watchlists` (id, name, position, updatedAt) and `watchlist_items` (watchlistId, playlistId, stableKey, position, addedAt). Items point to the channel's **stable key**, so they survive playlist refreshes; if a channel disappears from its playlist the item stays, greyed out as "Not available right now", in case it comes back. Deleting a playlist removes its items. Database v4 (generated migration, new tables only). |
+| Playing across playlists | The player currently assumes one playlist. It gets a "queue" source: either a group of one playlist (as today) or a watchlist. Each channel already carries its own stream link and user agent, so the player itself doesn't change; only the list it zaps through does. |
+| TV guide | Now/next is per playlist today; for a watchlist the app merges the guides of the playlists involved. |
+| Edits | A watchlist shows each channel with your edits applied (renames, logo). Hidden channels stay visible in a watchlist: if you put it there, you want it. |
+| Backup | Watchlists go into the backup file, matched by playlist fingerprint + stable key, like other edits. Restoring merges lists by name. |
+| Quick menu in player | TV: long-press OK / Menu while the overlay is closed (short OK still opens the channel list). Phone: long-press on the video. The menu is the same component as the Live list menu, plus *Add to watchlist*. |
+
+### Decisions (2026-10-26)
+
+1. **Favorites is the first, built-in watchlist** and works across playlists. Existing favorites move into it automatically.
+2. **Many watchlists** are allowed.
+
+### Search (added 2026-10-26)
+
+- One search across **all playlists**: type part of a name, then narrow by **country** and **group** (the provider's category, e.g. News, Sports, or the country groups in Free-TV), and optionally by playlist.
+- Country comes from the playlist's `tvg-country` when present, else from the tvg-id suffix (`Kanali7.al` → Albania); shown with full country names.
+- Results show what's on now, the playlist label and the health dot; OK/tap plays and zapping moves through the results; long-press opens the usual channel menu (add to watchlist, hide…).
+
+### Channel health: spot dead channels fast (added 2026-10-26)
+
+- **Check channels** (in Manage channels for a group, and for search results / watchlists) probes each stream in the background: it requests the stream and reads the first bytes. Result per channel: **Working**, **Offline** (not found, no answer, timeout), **Blocked** (refused, often geo-blocking), or not checked yet. 12 at a time, 6 s timeout each; progress shown; can be stopped.
+- Playing a channel also records its health for free (works → Working, fails → Offline/Blocked).
+- Results are stored (with the time) and shown as a small dot on channel rows: green, red, amber. Results older than a week count as unknown.
+- **Fast exclude:** after a check, one button: **Hide N offline channels** (and optionally the blocked ones). Undo is simply Show again in Manage channels.
+- Limits: a stream can work from one place and not another (geo-blocking), and a channel can be off for a few minutes; the check reports what this device sees right now.
+
+### Steps
+
+1. Data: tables (watchlists, items, channel health), `country` on channels, migration v4 that also moves existing favorites into the built-in "Favorites" watchlist. Unit tests for ordering, refresh survival, missing channels.
+2. Player queue that can span playlists; merged now/next for a watchlist.
+3. Quick menu in the TV and phone player (long-press), and "Add to watchlist" in every channel menu, with "New watchlist…".
+4. Watchlists at the top of Live TV and as their own section; playlist label on channels.
+5. Settings → Watchlists: create/rename/delete/reorder lists; reorder/remove channels (TV move mode, phone drag).
+6. Search screen (TV and phone) with name, country, group and playlist filters.
+7. Health check with dots, "Check channels" and "Hide N offline channels".
+8. Backup file with watchlists (older files still restore).
+9. Test on TV and phone emulators with two playlists (Free-TV + the local test playlist), commit, send the APK.
+
+### Notes (0.5.0, 2026-10-26)
+
+- **Done:** all 9 steps. Checked on the phone emulator (migration of an old favorite, a watchlist mixing two playlists, zapping across them, long-press menus, search, Check channels → Hide offline, rename) and on the TV emulator (Menu / hold OK quick menu in the player, new watchlist from the player, Search with country filter and Check channels, Settings → Watchlists).
+- **Database v4:** `watchlists`, `watchlist_items`, `channel_health`, `channels.country`. The old `favorite` flag is moved into the Favorites watchlist by the migration and no longer used.
+- **Backup:** watchlists were added as an optional field, so the format stays version 1: older files restore (their favorites go into Favorites) and older app versions ignore the new field.
+- **Fixed while testing on TV:** DASH (`.mpd`) channels crashed the app because the DASH player module was missing. It is now included, and any stream type the player can't handle shows the "format isn't supported" card instead. Also fixed: focus jumping to the side menu when Check channels finished, filter buttons squeezed off screen, and Down from the search field skipping Clear / Check channels.
+- **Limits:** a health check can say Working when the playlist file answers but its video segments are blocked (seen on some geo-blocked channels). Hold OK on the player's error card presses Try again (Menu still opens the quick menu there).
+- **Tests:** 44 JVM tests.

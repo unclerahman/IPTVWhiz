@@ -53,4 +53,6 @@ data class ChannelEntity(
     val groupTitle: String,
     val userAgent: String? = null,
     val referrer: String? = null,
+    /** tvg-country from the playlist (two-letter code), when it has one. */
+    val country: String? = null,
 )

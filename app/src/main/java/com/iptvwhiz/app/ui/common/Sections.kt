@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.iptvwhiz.app.data.OrganizedPlaylist
+import com.iptvwhiz.app.data.Watchlist
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.ui.Routes
 import com.iptvwhiz.app.ui.TopLevel
@@ -28,6 +29,7 @@ val settingsEntries = listOf(
     SettingsEntry(R.string.settings_playlists, R.string.settings_playlists_desc, Routes.PLAYLISTS),
     SettingsEntry(R.string.settings_epg, R.string.settings_epg_desc, Routes.EPG),
     SettingsEntry(R.string.settings_manage, R.string.settings_manage_desc, Routes.MANAGE),
+    SettingsEntry(R.string.settings_watchlists, R.string.settings_watchlists_desc, Routes.WATCHLISTS),
     SettingsEntry(R.string.settings_player, R.string.settings_player_desc),
     SettingsEntry(R.string.settings_appearance, R.string.settings_appearance_desc),
     SettingsEntry(R.string.settings_backup, R.string.settings_backup_desc, Routes.BACKUP),
@@ -41,12 +43,16 @@ fun isValidUrl(text: String): Boolean {
         trimmed.length > "https://".length
 }
 
-val NoFavoritesText = EmptyStateText(R.string.empty_favorites_title, R.string.empty_favorites_message)
+val NoWatchlistsText = EmptyStateText(R.string.empty_favorites_title, R.string.empty_favorites_message)
 
-/** Label for a browse key: the two pseudo-groups, or a group's (possibly renamed) name. */
+/** Label for a browse key: "All channels", Favorites, or a group's or watchlist's name. */
 @Composable
-fun groupLabel(key: String, displayName: String?): String = when (key) {
-    OrganizedPlaylist.ALL -> stringResource(R.string.all_channels)
-    OrganizedPlaylist.FAVORITES -> stringResource(R.string.nav_favorites)
+fun groupLabel(key: String, displayName: String?): String = when {
+    key == OrganizedPlaylist.ALL -> stringResource(R.string.all_channels)
+    displayName == null && OrganizedPlaylist.watchlistId(key) != null -> stringResource(R.string.watchlist_favorites)
     else -> displayName ?: key
 }
+
+/** A watchlist's name; the built-in Favorites list follows the device language. */
+@Composable
+fun watchlistName(list: Watchlist): String = if (list.isFavorites) stringResource(R.string.watchlist_favorites) else list.name

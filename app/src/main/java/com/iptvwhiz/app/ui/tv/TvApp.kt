@@ -35,9 +35,8 @@ fun TvApp(hasPlaylist: Boolean) {
                 }
                 composable(Routes.HOME) {
                     TvHomeScreen(
-                        onPlay = { channel, group ->
-                            nav.navigate(Routes.player(channel.playlistId, group, channel.stableKey))
-                        },
+                        onPlay = { channel, browseKey -> nav.navigate(Routes.player(channel, browseKey)) },
+                        onPlayQueue = { nav.navigate(Routes.playerQueue(it)) },
                         onAddPlaylist = { nav.navigate(Routes.WELCOME) },
                         onOpenRoute = { nav.navigate(it) },
                     )
@@ -50,6 +49,7 @@ fun TvApp(hasPlaylist: Boolean) {
                 composable(Routes.MANAGE) { TvManageScreen() }
                 composable(Routes.BACKUP) { TvBackupScreen() }
                 composable(Routes.EPG) { TvEpgSettingsScreen() }
+                composable(Routes.WATCHLISTS) { TvWatchlistsScreen() }
                 composable(Routes.PLAYER, arguments = Routes.playerArguments) {
                     TvPlayerScreen(onBack = { nav.popBackStack() })
                 }

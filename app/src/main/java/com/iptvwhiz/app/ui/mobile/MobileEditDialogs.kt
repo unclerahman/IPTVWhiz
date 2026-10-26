@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +38,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.ChannelGroup
-import com.iptvwhiz.app.data.OrganizedPlaylist
+import com.iptvwhiz.app.data.Watchlist
+import com.iptvwhiz.app.data.ref
+import com.iptvwhiz.app.ui.common.watchlistName
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.state.ChannelEdits
 
@@ -143,34 +147,52 @@ fun GroupPickerDialog(
     )
 }
 
-private enum class EditStage { Menu, Rename, Group }
+private enum class EditStage { Menu, Rename, Group, Watchlists }
 
-/** The "edit this channel" flow for touch: sheet → rename / move to group. */
+/**
+ * The "edit this channel" flow for touch: sheet → favorites / watchlists / rename / move to group / hide.
+ * Works for a channel from any playlist. [extraActions] adds context entries (e.g. remove from a watchlist).
+ */
 @Composable
 fun ChannelEditor(
     channel: Channel,
-    organized: OrganizedPlaylist?,
+    watchlists: List<Watchlist>,
     edits: ChannelEdits,
     onDone: () -> Unit,
     onNameTaken: (String) -> Unit,
+    extraActions: List<SheetAction> = emptyList(),
 ) {
     var stage by remember(channel.stableKey) { mutableStateOf(EditStage.Menu) }
+    val isFavorite = watchlists.firstOrNull { it.isFavorites }?.contains(channel.ref) == true
     when (stage) {
         EditStage.Menu -> ActionSheet(
             title = channel.name,
             subtitle = if (channel.name != channel.originalName) stringResource(R.string.originally, channel.originalName) else null,
             onDismiss = onDone,
-            actions = listOf(
-                SheetAction(
-                    stringResource(if (channel.favorite) R.string.channel_remove_favorite else R.string.channel_add_favorite),
-                ) { edits.toggleFavorite(channel); onDone() },
-                SheetAction(stringResource(R.string.channel_rename)) { stage = EditStage.Rename },
-                SheetAction(stringResource(R.string.channel_move_group)) { stage = EditStage.Group },
-                SheetAction(stringResource(if (channel.hidden) R.string.channel_show else R.string.channel_hide)) {
-                    edits.setHidden(channel, !channel.hidden)
-                    onDone()
-                },
-            ),
+            actions = buildList {
+                add(
+                    SheetAction(
+                        stringResource(if (isFavorite) R.string.channel_remove_favorite else R.string.channel_add_favorite),
+                    ) { edits.toggleFavorite(channel); onDone() },
+                )
+                add(SheetAction(stringResource(R.string.add_to_watchlist)) { stage = EditStage.Watchlists })
+                addAll(extraActions.map { action -> action.copy(onClick = { onDone(); action.onClick() }) })
+                add(SheetAction(stringResource(R.string.channel_rename)) { stage = EditStage.Rename })
+                add(SheetAction(stringResource(R.string.channel_move_group)) { stage = EditStage.Group })
+                add(
+                    SheetAction(stringResource(if (channel.hidden) R.string.channel_show else R.string.channel_hide)) {
+                        edits.setHidden(channel, !channel.hidden)
+                        onDone()
+                    },
+                )
+            },
+        )
+        EditStage.Watchlists -> WatchlistPickerDialog(
+            channel = channel,
+            watchlists = watchlists,
+            onDismiss = onDone,
+            onToggle = { edits.toggleWatchlist(it.id, channel) },
+            onNewWatchlist = { name -> edits.addToNewWatchlist(name, channel) { onNameTaken(name) } },
         )
         EditStage.Rename -> TextEntryDialog(
             title = stringResource(R.string.channel_rename),
@@ -180,14 +202,64 @@ fun ChannelEditor(
             onDismiss = onDone,
             onSave = { edits.rename(channel, it) },
         )
-        EditStage.Group -> if (organized != null) {
-            GroupPickerDialog(
-                groups = organized.groups,
-                currentKey = channel.groupTitle,
-                onDismiss = onDone,
-                onPick = { edits.moveToGroup(channel, it, organized) },
-                onNewGroup = { name -> edits.moveToNewGroup(channel, name, organized) { onNameTaken(name) } },
-            )
+        EditStage.Group -> {
+            val groups by produceState<List<ChannelGroup>?>(null, channel.playlistId) { value = edits.groupsFor(channel) }
+            groups?.let { list ->
+                GroupPickerDialog(
+                    groups = list,
+                    currentKey = channel.groupTitle,
+                    onDismiss = onDone,
+                    onPick = { edits.moveToGroup(channel, it) },
+                    onNewGroup = { name -> edits.moveToNewGroup(channel, name) { onNameTaken(name) } },
+                )
+            }
         }
     }
+}
+
+/** Tick or untick the watchlists a channel is in; "New watchlist" creates one with it. */
+@Composable
+fun WatchlistPickerDialog(
+    channel: Channel,
+    watchlists: List<Watchlist>,
+    onDismiss: () -> Unit,
+    onToggle: (Watchlist) -> Unit,
+    onNewWatchlist: (String) -> Unit,
+) {
+    var naming by remember { mutableStateOf(false) }
+    if (naming) {
+        TextEntryDialog(
+            title = stringResource(R.string.new_watchlist),
+            label = stringResource(R.string.field_watchlist_name),
+            initial = "",
+            saveLabel = stringResource(R.string.create),
+            onDismiss = onDismiss,
+            onSave = { if (it.isNotBlank()) onNewWatchlist(it) },
+        )
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.add_to_watchlist_title, channel.name)) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                items(watchlists, key = { it.id }) { list ->
+                    val inList = list.contains(channel.ref)
+                    ListItem(
+                        leadingContent = { Checkbox(checked = inList, onCheckedChange = { onToggle(list) }) },
+                        headlineContent = { Text(watchlistName(list), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        modifier = Modifier.clickable { onToggle(list) },
+                    )
+                }
+                item {
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.Add, contentDescription = null) },
+                        headlineContent = { Text(stringResource(R.string.new_watchlist)) },
+                        modifier = Modifier.clickable { naming = true },
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+    )
 }

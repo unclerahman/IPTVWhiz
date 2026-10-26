@@ -7,6 +7,8 @@ import com.iptvwhiz.app.data.PlaylistRepository
 import com.iptvwhiz.app.data.PlaylistSource
 import com.iptvwhiz.app.data.db.AppDatabase
 import com.iptvwhiz.app.data.db.PlaylistType
+import com.iptvwhiz.app.data.db.WatchlistEntity
+import com.iptvwhiz.app.data.db.WatchlistItem
 import com.iptvwhiz.app.data.xtream.XtreamCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,7 +38,24 @@ class BackupRepository(
                 includeLogins,
             )
         }
-        val file = BackupFile(exportedAt = System.currentTimeMillis(), appVersion = BuildConfig.VERSION_NAME, playlists = entries)
+        val fingerprints = db.playlists().getAll().associate { it.id to Backups.fingerprint(it) }
+        val items = db.watchlists().items().groupBy { it.watchlistId }
+        val watchlists = db.watchlists().watchlists().map { list ->
+            BackupWatchlist(
+                name = list.name,
+                builtIn = list.builtIn,
+                position = list.position,
+                items = items[list.id].orEmpty().mapNotNull { item ->
+                    fingerprints[item.playlistId]?.let { BackupWatchlistItem(it, item.stableKey, item.position, item.addedAt) }
+                },
+            )
+        }
+        val file = BackupFile(
+            exportedAt = System.currentTimeMillis(),
+            appVersion = BuildConfig.VERSION_NAME,
+            playlists = entries,
+            watchlists = watchlists,
+        )
         output.bufferedWriter().use { it.write(json.encodeToString(BackupFile.serializer(), file)) }
         entries.size
     }
@@ -49,6 +68,8 @@ class BackupRepository(
     suspend fun restore(input: InputStream, onProgress: (String) -> Unit = {}): RestoreSummary {
         val file = withContext(Dispatchers.IO) { read(input) }
         val local = db.playlists().getAll().associateBy { Backups.fingerprint(it) }
+        // Backup fingerprint → playlist id here, including playlists the restore adds.
+        val idsByFingerprint = local.mapValues { it.value.id }.toMutableMap()
         var merged = 0
         var added = 0
         var skipped = 0
@@ -74,7 +95,18 @@ class BackupRepository(
                     }
                 }
             }
+            idsByFingerprint[entry.fingerprint] = playlistId
             changes += apply(playlistId, entry)
+            changes += addToWatchlist(WatchlistEntity.FAVORITES_ID, Backups.legacyFavorites(entry).map { playlistId to it })
+        }
+        file.watchlists.forEach { backup ->
+            val target = when {
+                backup.builtIn -> WatchlistEntity.FAVORITES_ID
+                else -> db.watchlists().watchlists().firstOrNull { it.name.equals(backup.name, ignoreCase = true) }?.id
+                    ?: db.watchlists().insert(WatchlistEntity(name = backup.name, position = backup.position))
+            }
+            val refs = backup.items.sortedBy { it.position }.mapNotNull { item -> idsByFingerprint[item.playlist]?.let { it to item.key } }
+            changes += addToWatchlist(target, refs)
         }
         return RestoreSummary(merged, added, skipped, failed, changes)
     }
@@ -85,6 +117,22 @@ class BackupRepository(
         if (channels.isNotEmpty()) db.overlay().upsertAll(channels)
         if (groups.isNotEmpty()) db.overlay().upsertGroups(groups)
         channels.size + groups.size
+    }
+
+    /** Appends channels that aren't in the watchlist yet, keeping their order. Returns how many were added. */
+    private suspend fun addToWatchlist(watchlistId: Long, refs: List<Pair<Long, String>>): Int {
+        if (refs.isEmpty()) return 0
+        val dao = db.watchlists()
+        return db.withTransaction {
+            val present = dao.items(watchlistId).map { it.playlistId to it.stableKey }.toSet()
+            var position = dao.lastPosition(watchlistId)
+            val new = refs.distinct().filter { it !in present }.map { (playlistId, key) ->
+                position += 1
+                WatchlistItem(watchlistId, playlistId, key, position)
+            }
+            if (new.isNotEmpty()) dao.upsertItems(new)
+            new.size
+        }
     }
 
     private fun read(input: InputStream): BackupFile {

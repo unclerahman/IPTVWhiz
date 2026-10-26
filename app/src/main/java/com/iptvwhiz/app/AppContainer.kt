@@ -3,7 +3,10 @@ package com.iptvwhiz.app
 import android.content.Context
 import com.iptvwhiz.app.data.AppPrefs
 import com.iptvwhiz.app.data.OverlayRepository
+import com.iptvwhiz.app.data.HealthRepository
 import com.iptvwhiz.app.data.PlaylistRepository
+import com.iptvwhiz.app.data.WatchlistRepository
+import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.backup.BackupRepository
 import com.iptvwhiz.app.data.epg.EpgRepository
 import com.iptvwhiz.app.data.db.AppDatabase
@@ -48,6 +51,11 @@ class AppContainer(context: Context) {
     val overlay = OverlayRepository(db)
     val backups = BackupRepository(db, playlists)
     val epg = EpgRepository(db, http)
+    val watchlists = WatchlistRepository(db)
+    val health = HealthRepository(db, http)
+
+    /** Channels the player zaps through when they don't come from a group or watchlist (search results). */
+    var playQueue: List<Channel> = emptyList()
 
     companion object {
         /**

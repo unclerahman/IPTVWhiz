@@ -30,9 +30,8 @@ fun MobileApp(hasPlaylist: Boolean) {
                 }
                 composable(Routes.HOME) {
                     MobileHomeScreen(
-                        onPlay = { channel, group ->
-                            nav.navigate(Routes.player(channel.playlistId, group, channel.stableKey))
-                        },
+                        onPlay = { channel, browseKey -> nav.navigate(Routes.player(channel, browseKey)) },
+                        onPlayQueue = { nav.navigate(Routes.playerQueue(it)) },
                         onAddPlaylist = { nav.navigate(Routes.WELCOME) },
                         onOpenRoute = { nav.navigate(it) },
                     )
@@ -44,6 +43,12 @@ fun MobileApp(hasPlaylist: Boolean) {
                 }
                 composable(Routes.BACKUP) { MobileBackupScreen(onBack = back) }
                 composable(Routes.EPG) { MobileEpgSettingsScreen(onBack = back) }
+                composable(Routes.WATCHLISTS) {
+                    MobileWatchlistsScreen(onOpenList = { nav.navigate(Routes.watchlist(it)) }, onBack = back)
+                }
+                composable(Routes.WATCHLIST, arguments = Routes.manageGroupArguments) {
+                    MobileWatchlistScreen(onBack = back)
+                }
                 composable(Routes.MANAGE) {
                     MobileManageScreen(onOpenGroup = { nav.navigate(Routes.manageGroup(it)) }, onBack = back)
                 }

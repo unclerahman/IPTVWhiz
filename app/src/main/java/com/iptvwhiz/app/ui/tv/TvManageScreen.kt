@@ -56,6 +56,9 @@ import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.ChannelGroup
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.common.ChannelLogo
+import com.iptvwhiz.app.ui.common.HealthDot
+import com.iptvwhiz.app.data.db.HealthStatus
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.EmptyStateText
 import com.iptvwhiz.app.ui.common.formatCount
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
@@ -80,6 +83,9 @@ fun TvManageScreen() {
     val groups by vm.groups.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
+    val health by vm.health.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
+    val favorites = watchlists.firstOrNull { it.isFavorites }?.entries?.map { it.ref }?.toSet().orEmpty()
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -213,6 +219,7 @@ fun TvManageScreen() {
             }
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f).fillMaxHeight()) {
+                if (channels.isNotEmpty()) TvHealthBar(vm.healthCheck, channels, Modifier.padding(start = 12.dp, bottom = 8.dp))
                 currentGroup?.let { group ->
                     Text(
                         "${group.displayName} · " + stringResource(
@@ -237,6 +244,8 @@ fun TvManageScreen() {
                         ManageChannelRow(
                             channel = channel,
                             moving = moving,
+                            isFavorite = channel.ref in favorites,
+                            health = health[channel.ref],
                             onClick = {
                                 if (moving) {
                                     movingChannelKey = null
@@ -265,7 +274,7 @@ fun TvManageScreen() {
     editingChannel?.let { channel ->
         TvChannelEditor(
             channel = channel,
-            organized = organized,
+            watchlists = watchlists,
             edits = vm.edits,
             onDone = { editingChannel = null },
             onNameTaken = vm::nameTaken,
@@ -346,29 +355,6 @@ fun TvManageScreen() {
 
 private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().apply { add(to, removeAt(from)) }
 
-/** In move mode the focused row takes ▲▼ itself instead of moving focus. */
-private fun Modifier.moveKeys(active: Boolean, onMove: (Int) -> Unit): Modifier =
-    if (!active) {
-        this
-    } else {
-        onPreviewKeyEvent {
-            if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent it.key == Key.DirectionUp || it.key == Key.DirectionDown
-            when (it.key) {
-                Key.DirectionUp -> { onMove(-1); true }
-                Key.DirectionDown -> { onMove(1); true }
-                // Sideways would leave the row mid-move.
-                Key.DirectionLeft, Key.DirectionRight -> true
-                else -> false
-            }
-        }
-    }
-
-@Composable
-private fun movingBorder() = ListItemDefaults.border(
-    border = Border(BorderStroke(2.dp, MaterialTheme.colorScheme.secondary), shape = RoundedCornerShape(12.dp)),
-    focusedBorder = Border(BorderStroke(3.dp, MaterialTheme.colorScheme.secondary), shape = RoundedCornerShape(12.dp)),
-)
-
 @Composable
 private fun ManageGroupRow(
     group: ChannelGroup,
@@ -408,6 +394,8 @@ private fun ManageGroupRow(
 private fun ManageChannelRow(
     channel: Channel,
     moving: Boolean,
+    isFavorite: Boolean,
+    health: HealthStatus?,
     onClick: () -> Unit,
     onMove: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -421,13 +409,18 @@ private fun ManageChannelRow(
         scale = ListItemDefaults.scale(focusedScale = 1.02f),
         border = if (moving) movingBorder() else ListItemDefaults.border(),
         leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 40.dp) },
-        headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                HealthDot(health, Modifier.padding(start = 10.dp))
+            }
+        },
         supportingContent = when {
             channel.hidden -> { { Text(stringResource(R.string.label_hidden)) } }
             channel.name != channel.originalName -> { { Text(stringResource(R.string.originally, channel.originalName), maxLines = 1) } }
             else -> null
         },
-        trailingContent = if (channel.favorite) {
+        trailingContent = if (isFavorite) {
             { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
         } else {
             null

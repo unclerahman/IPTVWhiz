@@ -68,7 +68,7 @@ data class GroupSetting(
             COALESCE(o.customLogo, c.logoUrl) AS logoUrl,
             c.streamUrl, c.tvgId,
             COALESCE(o.customGroup, c.groupTitle) AS groupTitle, c.groupTitle AS originalGroup,
-            c.userAgent, c.referrer,
+            c.userAgent, c.referrer, c.country,
             COALESCE(o.hidden, 0) AS hidden, COALESCE(o.favorite, 0) AS favorite,
             COALESCE(o.sortOrder, c.number) AS sortOrder
         FROM channels c
@@ -88,7 +88,20 @@ data class Channel(
     val originalGroup: String,
     val userAgent: String?,
     val referrer: String?,
+    /** tvg-country as given by the playlist; see [effectiveCountry]. */
+    val country: String?,
     val hidden: Boolean,
     val favorite: Boolean,
     val sortOrder: Double,
 )
+
+/**
+ * Two-letter country code: the playlist's tvg-country, else the tvg-id suffix
+ * ("Kanali7.al" → "AL", "CNN.us@SD" → "US"). Null when neither says.
+ */
+val Channel.effectiveCountry: String?
+    get() {
+        country?.split(',', ';')?.firstOrNull()?.trim()?.takeIf { it.length == 2 }?.let { return it.uppercase() }
+        val suffix = tvgId?.substringBefore('@')?.substringAfterLast('.', "")?.trim()
+        return suffix?.takeIf { it.length == 2 && it.all(Char::isLetter) }?.uppercase()
+    }

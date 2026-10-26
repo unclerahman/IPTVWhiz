@@ -46,7 +46,8 @@ import com.iptvwhiz.app.ui.theme.TvSafeArea
 
 @Composable
 fun TvHomeScreen(
-    onPlay: (Channel, group: String) -> Unit,
+    onPlay: (Channel, browseKey: String) -> Unit,
+    onPlayQueue: (Channel) -> Unit,
     onAddPlaylist: () -> Unit,
     onOpenRoute: (String) -> Unit,
 ) {
@@ -83,7 +84,8 @@ fun TvHomeScreen(
         ) {
             when (selected) {
                 TopLevel.Live -> TvLiveContent(onPlay = onPlay, onAddPlaylist = onAddPlaylist)
-                TopLevel.Favorites -> TvFavoritesContent(onPlay = onPlay)
+                TopLevel.Favorites -> TvLiveContent(onPlay = onPlay, onAddPlaylist = onAddPlaylist, watchlistsOnly = true)
+                TopLevel.Search -> TvSearchContent(onPlay = onPlayQueue)
                 TopLevel.Guide -> TvGuideContent(onPlay = onPlay)
                 TopLevel.Settings -> TvSettings(onOpenRoute)
                 else -> selected.emptyState()?.let { TvEmptyState(it) }

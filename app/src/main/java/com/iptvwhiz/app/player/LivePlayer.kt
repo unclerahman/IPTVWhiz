@@ -138,7 +138,14 @@ class LivePlayer(context: Context, http: OkHttpClient) {
             .setUri(channel.streamUrl)
             .apply { if (forceHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
-        player.setMediaSource(DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(item))
+        val source = try {
+            DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(item)
+        } catch (e: IllegalStateException) {
+            // A stream type with no player module in the app (e.g. RTSP, Smooth Streaming).
+            _state.value = LivePlayerState(problem = PlaybackProblem.Unsupported)
+            return
+        }
+        player.setMediaSource(source)
         player.prepare()
         player.playWhenReady = true
     }

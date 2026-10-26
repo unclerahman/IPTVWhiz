@@ -23,6 +23,8 @@ data class BackupFile(
     val exportedAt: Long,
     val appVersion: String,
     val playlists: List<BackupPlaylist>,
+    /** Added in 0.5; older files have none and still restore. */
+    val watchlists: List<BackupWatchlist> = emptyList(),
 ) {
     companion object {
         const val FORMAT = "iptvwhiz-backup"
@@ -64,6 +66,23 @@ data class BackupGroup(
     val sortOrder: Double? = null,
     val isCustom: Boolean = false,
     val updatedAt: Long,
+)
+
+@Serializable
+data class BackupWatchlist(
+    val name: String,
+    val builtIn: Boolean = false,
+    val position: Double = 0.0,
+    val items: List<BackupWatchlistItem> = emptyList(),
+)
+
+/** A watchlist channel: its playlist by fingerprint, the channel by stable key. */
+@Serializable
+data class BackupWatchlistItem(
+    val playlist: String,
+    val key: String,
+    val position: Double,
+    val addedAt: Long,
 )
 
 /** What a restore did, for the message shown afterwards. */
@@ -117,9 +136,13 @@ object Backups {
         return incoming
             .filter { remote -> byKey[remote.key].let { it == null || remote.updatedAt > it.updatedAt } }
             .map {
-                ChannelOverride(playlistId, it.key, it.customName, it.customLogo, it.customGroup, it.hidden, it.favorite, it.sortOrder, it.updatedAt)
+                // Favorites live in the Favorites watchlist now; see [legacyFavorites].
+                ChannelOverride(playlistId, it.key, it.customName, it.customLogo, it.customGroup, it.hidden, false, it.sortOrder, it.updatedAt)
             }
     }
+
+    /** Channels marked favorite in backups made before watchlists existed. */
+    fun legacyFavorites(entry: BackupPlaylist): List<String> = entry.channels.filter { it.favorite }.map { it.key }
 
     fun groupsToApply(playlistId: Long, local: List<GroupSetting>, incoming: List<BackupGroup>): List<GroupSetting> {
         val byName = local.associateBy { it.name }

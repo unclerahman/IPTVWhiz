@@ -1,34 +1,27 @@
 package com.iptvwhiz.app.ui.mobile
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
-import com.iptvwhiz.app.data.epg.NowNext
-import com.iptvwhiz.app.ui.common.ProgramProgress
-import com.iptvwhiz.app.ui.common.formatTimeRange
-import com.iptvwhiz.app.ui.common.nextLine
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.runtime.remember
-import com.iptvwhiz.app.data.OrganizedPlaylist
-import com.iptvwhiz.app.ui.common.NoFavoritesText
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -46,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,17 +52,27 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvwhiz.app.BuildConfig
 import com.iptvwhiz.app.R
+import com.iptvwhiz.app.data.ChannelRef
+import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.db.HealthStatus
+import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.TopLevel
 import com.iptvwhiz.app.ui.common.AdSlot
 import com.iptvwhiz.app.ui.common.BackToExit
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.EmptyStateText
+import com.iptvwhiz.app.ui.common.HealthDot
 import com.iptvwhiz.app.ui.common.NoPlaylistText
-import com.iptvwhiz.app.ui.common.emptyState
+import com.iptvwhiz.app.ui.common.NoWatchlistsText
+import com.iptvwhiz.app.ui.common.ProgramProgress
 import com.iptvwhiz.app.ui.common.formatCount
+import com.iptvwhiz.app.ui.common.formatTimeRange
+import com.iptvwhiz.app.ui.common.nextLine
 import com.iptvwhiz.app.ui.common.settingsEntries
 import com.iptvwhiz.app.ui.common.showComingSoon
+import com.iptvwhiz.app.ui.common.watchlistName
 import com.iptvwhiz.app.ui.state.LiveViewModel
 import com.iptvwhiz.app.ui.state.appViewModel
 
@@ -78,7 +82,8 @@ private val bottomBarSections = TopLevel.entries - TopLevel.Search
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MobileHomeScreen(
-    onPlay: (Channel, group: String) -> Unit,
+    onPlay: (Channel, browseKey: String) -> Unit,
+    onPlayQueue: (Channel) -> Unit,
     onAddPlaylist: () -> Unit,
     onOpenRoute: (String) -> Unit,
 ) {
@@ -128,41 +133,59 @@ fun MobileHomeScreen(
             .fillMaxSize()
             .padding(padding)
         when (selected) {
-            TopLevel.Live -> MobileLiveContent(vm, onPlay, onAddPlaylist, contentModifier)
-            TopLevel.Favorites -> MobileFavoritesContent(vm, onPlay, contentModifier)
+            TopLevel.Live -> MobileBrowse(vm, onPlay, onAddPlaylist, contentModifier, watchlistsOnly = false)
+            TopLevel.Favorites -> MobileBrowse(vm, onPlay, onAddPlaylist, contentModifier, watchlistsOnly = true)
             TopLevel.Guide -> MobileGuideContent(vm, onPlay, contentModifier)
+            TopLevel.Search -> MobileSearchContent(onPlayQueue, contentModifier)
             TopLevel.Settings -> MobileSettings(onOpenRoute, contentModifier)
-            else -> selected.emptyState()?.let { MobileEmptyState(it, contentModifier) }
         }
     }
 }
 
+/** Live TV (watchlists, All channels, groups) or just the watchlists, as chips over a channel list. */
 @Composable
-private fun MobileLiveContent(
+private fun MobileBrowse(
     vm: LiveViewModel,
-    onPlay: (Channel, group: String) -> Unit,
+    onPlay: (Channel, browseKey: String) -> Unit,
     onAddPlaylist: () -> Unit,
     modifier: Modifier,
+    watchlistsOnly: Boolean,
 ) {
+    val context = LocalContext.current
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val playlist by vm.activePlaylist.collectAsStateWithLifecycle()
     val organized by vm.organized.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
+    val guide by vm.guide.collectAsStateWithLifecycle()
+    val health by vm.health.collectAsStateWithLifecycle()
+    val favorites by vm.favorites.collectAsStateWithLifecycle()
 
     if (playlists == null) return
     if (playlist == null) {
         MobileEmptyState(NoPlaylistText, modifier, actionLabel = stringResource(R.string.add_provider), onAction = onAddPlaylist)
         return
     }
+    if (watchlistsOnly && watchlists.all { it.entries.isEmpty() }) {
+        MobileEmptyState(NoWatchlistsText, modifier)
+        return
+    }
+    val shownLists = if (watchlistsOnly) watchlists else watchlists.filter { it.entries.isNotEmpty() }
+    LaunchedEffect(watchlistsOnly, shownLists.firstOrNull()?.id) {
+        if (watchlistsOnly && OrganizedPlaylist.watchlistId(selectedGroup) == null) {
+            shownLists.firstOrNull()?.let { vm.selectGroup(OrganizedPlaylist.watchlistKey(it.id)) }
+        }
+    }
 
     val listState = rememberLazyListState()
     LaunchedEffect(selectedGroup) { listState.scrollToItem(0) }
-    // The Favorites chip appears in front of "All channels"; scroll so it's seen, not hidden off the left edge.
     val chipState = rememberLazyListState()
-    val hasFavorites = !organized?.favorites.isNullOrEmpty()
-    LaunchedEffect(hasFavorites) { if (hasFavorites) chipState.scrollToItem(0) }
+    LaunchedEffect(shownLists.size) { chipState.scrollToItem(0) }
+    var editing by remember { mutableStateOf<Channel?>(null) }
+    val names = playlists.orEmpty().associate { it.id to it.name }
+    val watchlistId = OrganizedPlaylist.watchlistId(selectedGroup)
 
     Column(modifier) {
         LazyRow(
@@ -170,87 +193,98 @@ private fun MobileLiveContent(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val favorites = organized?.favorites.orEmpty()
-            if (favorites.isNotEmpty()) {
-                item(key = OrganizedPlaylist.FAVORITES) {
+            items(shownLists, key = { OrganizedPlaylist.watchlistKey(it.id) }) { list ->
+                val key = OrganizedPlaylist.watchlistKey(list.id)
+                FilterChip(
+                    selected = selectedGroup == key,
+                    onClick = { vm.selectGroup(key) },
+                    label = { Text("${watchlistName(list)} · ${formatCount(list.available.size)}") },
+                )
+            }
+            if (!watchlistsOnly) {
+                item(key = OrganizedPlaylist.ALL) {
                     FilterChip(
-                        selected = selectedGroup == OrganizedPlaylist.FAVORITES,
-                        onClick = { vm.selectGroup(OrganizedPlaylist.FAVORITES) },
-                        label = { Text("${stringResource(R.string.nav_favorites)} · ${formatCount(favorites.size)}") },
+                        selected = selectedGroup == OrganizedPlaylist.ALL,
+                        onClick = { vm.selectGroup(OrganizedPlaylist.ALL) },
+                        label = { Text("${stringResource(R.string.all_channels)} · ${formatCount(organized?.visibleCount ?: 0)}") },
+                    )
+                }
+                items(groups, key = { it.key }) { group ->
+                    FilterChip(
+                        selected = selectedGroup == group.key,
+                        onClick = { vm.selectGroup(group.key) },
+                        label = { Text("${group.displayName} · ${formatCount(group.visibleCount)}") },
                     )
                 }
             }
-            item(key = OrganizedPlaylist.ALL) {
-                FilterChip(
-                    selected = selectedGroup == OrganizedPlaylist.ALL,
-                    onClick = { vm.selectGroup(OrganizedPlaylist.ALL) },
-                    label = { Text("${stringResource(R.string.all_channels)} · ${formatCount(organized?.visibleCount ?: 0)}") },
-                )
-            }
-            items(groups, key = { it.key }) { group ->
-                FilterChip(
-                    selected = selectedGroup == group.key,
-                    onClick = { vm.selectGroup(group.key) },
-                    label = { Text("${group.displayName} · ${formatCount(group.visibleCount)}") },
-                )
-            }
         }
         MobileChannelList(
-            vm = vm,
             channels = channels,
-            showGroup = selectedGroup == OrganizedPlaylist.ALL || selectedGroup == OrganizedPlaylist.FAVORITES,
+            guide = guide,
+            health = health,
+            favorites = favorites,
+            subtitle = { channel ->
+                when {
+                    watchlistId != null && names.size > 1 -> "${names[channel.playlistId].orEmpty()} · ${channel.groupTitle}"
+                    watchlistId != null || selectedGroup == OrganizedPlaylist.ALL -> channel.groupTitle
+                    else -> null
+                }
+            },
             listState = listState,
             onPlay = { onPlay(it, selectedGroup) },
+            onLongPress = { editing = it },
+        )
+    }
+    editing?.let { channel ->
+        val customList = watchlistId?.takeIf { id -> watchlists.firstOrNull { it.id == id }?.isFavorites == false }
+        ChannelEditor(
+            channel = channel,
+            watchlists = watchlists,
+            edits = vm.edits,
+            onDone = { editing = null },
+            onNameTaken = { name -> Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show() },
+            extraActions = if (customList != null) {
+                listOf(SheetAction(stringResource(R.string.remove_from_watchlist)) { vm.edits.toggleWatchlist(customList, channel) })
+            } else {
+                emptyList()
+            },
         )
     }
 }
 
-@Composable
-private fun MobileFavoritesContent(vm: LiveViewModel, onPlay: (Channel, group: String) -> Unit, modifier: Modifier) {
-    val organized by vm.organized.collectAsStateWithLifecycle()
-    val favorites = organized?.favorites ?: return
-    if (favorites.isEmpty()) {
-        MobileEmptyState(NoFavoritesText, modifier)
-        return
-    }
-    Box(modifier) {
-        MobileChannelList(
-            vm = vm,
-            channels = favorites,
-            showGroup = true,
-            listState = rememberLazyListState(),
-            onPlay = { onPlay(it, OrganizedPlaylist.FAVORITES) },
-        )
-    }
-}
-
-/** Tap plays; long-press opens the edit sheet (favorite, rename, move, hide). */
+/** Tap plays; long-press opens the edit sheet. Shared by browsing and search. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MobileChannelList(
-    vm: LiveViewModel,
+internal fun MobileChannelList(
     channels: List<Channel>,
-    showGroup: Boolean,
+    guide: Map<ChannelRef, NowNext>,
+    health: Map<ChannelRef, HealthStatus>,
+    favorites: Set<ChannelRef>,
+    subtitle: (Channel) -> String?,
     listState: LazyListState,
     onPlay: (Channel) -> Unit,
+    onLongPress: (Channel) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val organized by vm.organized.collectAsStateWithLifecycle()
-    val guide by vm.nowNext.collectAsStateWithLifecycle()
-    var editing by remember { mutableStateOf<Channel?>(null) }
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        items(channels, key = { it.stableKey }) { channel ->
-            val programme = guide[channel.stableKey]
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
+        items(channels, key = { "${it.playlistId}|${it.stableKey}" }) { channel ->
+            val programme = guide[channel.ref]
+            val sub = subtitle(channel)
             ListItem(
                 leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
                 overlineContent = { Text(channel.number.toString()) },
-                headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                headlineContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        HealthDot(health[channel.ref], Modifier.padding(start = 8.dp))
+                    }
+                },
                 supportingContent = when {
                     programme?.now != null -> { { MobileNowLine(programme) } }
-                    showGroup -> { { Text(channel.groupTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                    sub != null -> { { Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
                     else -> null
                 },
-                trailingContent = if (channel.favorite) {
+                trailingContent = if (channel.ref in favorites) {
                     {
                         Icon(
                             Icons.Filled.Favorite,
@@ -263,26 +297,15 @@ private fun MobileChannelList(
                 },
                 modifier = Modifier.combinedClickable(
                     onClick = { onPlay(channel) },
-                    onLongClick = { editing = channel },
+                    onLongClick = { onLongPress(channel) },
                 ),
             )
         }
     }
-    editing?.let { channel ->
-        ChannelEditor(
-            channel = channel,
-            organized = organized,
-            edits = vm.edits,
-            onDone = { editing = null },
-            onNameTaken = { name ->
-                Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
-            },
-        )
-    }
 }
 
 @Composable
-private fun MobileEmptyState(
+internal fun MobileEmptyState(
     text: EmptyStateText,
     modifier: Modifier,
     actionLabel: String? = null,
@@ -293,7 +316,7 @@ private fun MobileEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(stringResource(text.title), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(text.title), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
             text = stringResource(text.message),
@@ -344,9 +367,9 @@ private fun MobileNowLine(programme: NowNext) {
 private fun MobileGuideContent(vm: LiveViewModel, onPlay: (Channel, group: String) -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     val organized by vm.organized.collectAsStateWithLifecycle()
-    val guide by vm.nowNext.collectAsStateWithLifecycle()
+    val guide by vm.guide.collectAsStateWithLifecycle()
     val channels = remember(organized, guide) {
-        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.stableKey] != null }
+        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.ref] != null }
     }
     if (channels.isEmpty()) {
         MobileEmptyState(EmptyStateText(R.string.guide_empty_title, R.string.guide_empty_message), modifier)
@@ -354,7 +377,7 @@ private fun MobileGuideContent(vm: LiveViewModel, onPlay: (Channel, group: Strin
     }
     LazyColumn(modifier) {
         items(channels, key = { it.stableKey }) { channel ->
-            val programme = guide[channel.stableKey]
+            val programme = guide[channel.ref]
             ListItem(
                 leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
                 overlineContent = { Text("${channel.number}  ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) },

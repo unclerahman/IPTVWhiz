@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.ChannelGroup
+import com.iptvwhiz.app.data.ChannelRef
+import com.iptvwhiz.app.data.Watchlist
+import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.PlaylistEntity
@@ -58,7 +61,14 @@ class ManageViewModel(container: AppContainer, savedState: SavedStateHandle) : V
         organized.manage(groupKey)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val edits = ChannelEdits(overlay, viewModelScope)
+    val edits = ChannelEdits(container, viewModelScope)
+    val healthCheck = HealthCheck(container, viewModelScope)
+
+    val health: StateFlow<Map<ChannelRef, HealthStatus>> = container.health.statuses()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    val watchlists: StateFlow<List<Watchlist>> = container.watchlists.watchlists
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _events = MutableSharedFlow<ManageEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<ManageEvent> = _events.asSharedFlow()

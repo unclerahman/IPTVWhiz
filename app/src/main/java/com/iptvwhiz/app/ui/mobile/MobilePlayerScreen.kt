@@ -5,7 +5,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -95,6 +96,8 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     val playerState by vm.livePlayer.state.collectAsStateWithLifecycle()
     val groupName by vm.groupName.collectAsStateWithLifecycle()
     val programme by vm.programme.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
+    var menuFor by remember { mutableStateOf<Channel?>(null) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var controlsVisible by remember { mutableStateOf(true) }
@@ -120,8 +123,22 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             state = playerState,
             controlsVisible = controlsVisible,
             onToggleControls = { controlsVisible = !controlsVisible },
+            onLongPress = { current?.let { menuFor = it } },
             onBack = onBack,
             modifier = modifier,
+        )
+    }
+
+    menuFor?.let { channel ->
+        val context = LocalContext.current
+        ChannelEditor(
+            channel = channel,
+            watchlists = watchlists,
+            edits = vm.edits,
+            onDone = { menuFor = null },
+            onNameTaken = { name ->
+                android.widget.Toast.makeText(context, context.getString(R.string.name_taken, name), android.widget.Toast.LENGTH_SHORT).show()
+            },
         )
     }
 
@@ -134,7 +151,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             }
             current?.let { NowPlaying(it, groupName, programme) }
             HorizontalDivider()
-            PortraitChannelList(channels, index, onSelect = vm::playAt)
+            PortraitChannelList(channels, index, onSelect = vm::playAt, onLongPress = { menuFor = it })
         }
     }
 }
@@ -146,6 +163,7 @@ private fun VideoArea(
     state: LivePlayerState,
     controlsVisible: Boolean,
     onToggleControls: () -> Unit,
+    onLongPress: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier,
 ) {
@@ -155,7 +173,7 @@ private fun VideoArea(
     Box(
         modifier
             .background(Color.Black)
-            .pointerInput(Unit) { detectTapGestures(onTap = { onToggleControls() }) }
+            .pointerInput(Unit) { detectTapGestures(onTap = { onToggleControls() }, onLongPress = { onLongPress() }) }
             .pointerInput(Unit) {
                 var total = 0f
                 detectVerticalDragGestures(
@@ -296,8 +314,14 @@ private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PortraitChannelList(channels: List<Channel>, currentIndex: Int, onSelect: (Int) -> Unit) {
+private fun PortraitChannelList(
+    channels: List<Channel>,
+    currentIndex: Int,
+    onSelect: (Int) -> Unit,
+    onLongPress: (Channel) -> Unit,
+) {
     val listState = rememberLazyListState()
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0) listState.animateScrollToItem((currentIndex - 2).coerceAtLeast(0))
@@ -315,7 +339,7 @@ private fun PortraitChannelList(channels: List<Channel>, currentIndex: Int, onSe
                 } else {
                     ListItemDefaults.colors()
                 },
-                modifier = Modifier.clickable { onSelect(i) },
+                modifier = Modifier.combinedClickable(onClick = { onSelect(i) }, onLongClick = { onLongPress(channel) }),
             )
         }
     }

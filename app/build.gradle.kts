@@ -14,8 +14,8 @@ android {
         applicationId = "com.iptvwhiz.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
     }
 
     buildTypes {
@@ -71,6 +71,7 @@ dependencies {
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.ui)
     implementation(libs.media3.datasource.okhttp)
 

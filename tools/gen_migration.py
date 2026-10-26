@@ -1,5 +1,14 @@
-"""Generates Migrations.kt from Room's exported schemas: one Migration per version step.
-Only additive steps are generated (new tables, their indices, new views); a changed table aborts."""
+"""Generates SchemaMigrations.kt from Room's exported schemas (app/schemas).
+
+For each version step it writes the schema SQL: new tables and their indices, new
+nullable columns (ALTER TABLE ADD COLUMN), and new or changed views (DROP + CREATE).
+Anything else (a removed column, a type change, a new NOT NULL column without a default)
+stops the script: that step needs a hand-written migration.
+
+Data changes (moving rows around) belong in Migrations.kt, which calls these functions.
+
+Usage: python tools/gen_migration.py <project root>
+"""
 import glob
 import json
 import os
@@ -8,7 +17,7 @@ import sys
 root = sys.argv[1]
 schema_dir = root + '/app/schemas/com.iptvwhiz.app.data.db.AppDatabase'
 versions = sorted(int(os.path.basename(p)[:-5]) for p in glob.glob(schema_dir + '/*.json'))
-schemas = {v: json.load(open(f'{schema_dir}/{v}.json'))['database'] for v in versions}
+schemas = {v: json.load(open(f'{schema_dir}/{v}.json', encoding='utf-8'))['database'] for v in versions}
 
 BS = chr(92)
 
@@ -18,58 +27,71 @@ def kt(s):
     return '"' + s + '"'
 
 
-notes = {
-    (1, 2): "user edits (channel overrides, group settings) and the channel_view that applies them.",
-    (2, 3): "TV guide: programmes, guide-to-channel map and update status.",
-}
+def fail(message):
+    sys.exit(message + ': write this migration step by hand.')
 
-blocks = []
-names = []
+
+functions = []
 for old, new in zip(versions, versions[1:]):
     a, b = schemas[old], schemas[new]
     old_tables = {e['tableName']: e for e in a['entities']}
     stmts = []
     for e in b['entities']:
         t = e['tableName']
-        if t in old_tables:
-            if old_tables[t]['createSql'] != e['createSql']:
-                sys.exit(f'Table {t} changed between {old} and {new}: write this migration by hand.')
+        if t not in old_tables:
+            stmts.append(e['createSql'].replace('${TABLE_NAME}', t))
+            for i in e.get('indices', []):
+                stmts.append(i['createSql'].replace('${TABLE_NAME}', t))
             continue
-        stmts.append(e['createSql'].replace('${TABLE_NAME}', t))
+        before = old_tables[t]
+        if before['createSql'] == e['createSql']:
+            continue
+        old_fields = {f['columnName']: f for f in before['fields']}
+        new_fields = {f['columnName']: f for f in e['fields']}
+        if not set(old_fields) <= set(new_fields):
+            fail(f'Table {t} lost columns between {old} and {new}')
+        for name, f in old_fields.items():
+            if f != new_fields[name]:
+                fail(f'Column {t}.{name} changed between {old} and {new}')
+        if before.get('primaryKey') != e.get('primaryKey') or before.get('foreignKeys') != e.get('foreignKeys'):
+            fail(f'Keys of {t} changed between {old} and {new}')
+        for name in [f['columnName'] for f in e['fields'] if f['columnName'] not in old_fields]:
+            f = new_fields[name]
+            sql = f"ALTER TABLE `{t}` ADD COLUMN `{name}` {f['affinity']}"
+            if f.get('notNull'):
+                if 'defaultValue' not in f:
+                    fail(f'New NOT NULL column {t}.{name} has no default')
+                sql += f" NOT NULL DEFAULT {f['defaultValue']}"
+            elif 'defaultValue' in f:
+                sql += f" DEFAULT {f['defaultValue']}"
+            stmts.append(sql)
+        old_indices = {i['name'] for i in before.get('indices', [])}
         for i in e.get('indices', []):
-            stmts.append(i['createSql'].replace('${TABLE_NAME}', t))
+            if i['name'] not in old_indices:
+                stmts.append(i['createSql'].replace('${TABLE_NAME}', t))
     old_views = {v['viewName']: v for v in a.get('views', [])}
     for v in b.get('views', []):
-        if v['viewName'] in old_views:
-            if old_views[v['viewName']]['createSql'] != v['createSql']:
-                sys.exit(f"View {v['viewName']} changed between {old} and {new}: write this migration by hand.")
+        name = v['viewName']
+        if name in old_views and old_views[name]['createSql'] == v['createSql']:
             continue
-        stmts.append(v['createSql'].replace('${VIEW_NAME}', v['viewName']))
-    body = "\n".join("            db.execSQL(\n                " + kt(s) + ",\n            )" for s in stmts)
-    name = f'MIGRATION_{old}_{new}'
-    names.append(name)
-    note = notes.get((old, new), "additive schema change.")
-    blocks.append(f'''    /** v{new}: {note} */
-    val {name} = object : Migration({old}, {new}) {{
-        override fun migrate(db: SupportSQLiteDatabase) {{
+        if name in old_views:
+            stmts.append(f'DROP VIEW IF EXISTS `{name}`')
+        stmts.append(v['createSql'].replace('${VIEW_NAME}', name))
+    body = "\n".join(f"        db.execSQL({kt(s)})" for s in stmts)
+    functions.append(f'''    fun schema{old}to{new}(db: SupportSQLiteDatabase) {{
 {body}
-        }}
     }}''')
 
 src = '''package com.iptvwhiz.app.data.db
 
-import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-/**
- * Schema migrations. Keep every version: a phone that skipped updates must still upgrade
- * without losing playlists or edits. SQL is copied verbatim from app/schemas (Room compares it).
- */
-object Migrations {
-''' + "\n\n".join(blocks) + f'''
+// GENERATED by tools/gen_migration.py from app/schemas. Do not edit by hand.
 
-    val ALL = arrayOf({", ".join(names)})
-}}
+/** Schema-only SQL for each version step, copied verbatim from Room's exported schemas. */
+internal object SchemaMigrations {
+''' + "\n\n".join(functions) + '''
+}
 '''
-open(root + '/app/src/main/java/com/iptvwhiz/app/data/db/Migrations.kt', 'w', encoding='utf-8').write(src)
-print("generated", names)
+open(root + '/app/src/main/java/com/iptvwhiz/app/data/db/SchemaMigrations.kt', 'w', encoding='utf-8').write(src)
+print("generated steps:", [f'{a}->{b}' for a, b in zip(versions, versions[1:])])

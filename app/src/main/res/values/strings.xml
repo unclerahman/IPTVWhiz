@@ -69,8 +69,8 @@
     <string name="empty_group">No channels in this group.</string>
     <string name="empty_guide_title">No TV guide yet</string>
     <string name="empty_guide_message">The guide will show what\'s on once EPG support arrives.</string>
-    <string name="empty_favorites_title">No favorites yet</string>
-    <string name="empty_favorites_message">Long-press a channel (or press Menu on the remote) and choose Add to favorites.</string>
+    <string name="empty_favorites_title">Your watchlists are empty</string>
+    <string name="empty_favorites_message">Long-press a channel (or press Menu on the remote), in a list or while watching, and choose Add to favorites or Add to watchlist.</string>
     <string name="empty_search_title">Search channels</string>
     <string name="empty_search_message">Search is coming in a future update.</string>
     <string name="add_provider">Add provider</string>
@@ -86,7 +86,7 @@
     <string name="channel_list">Channel list</string>
     <string name="channel_position">%1$d of %2$d</string>
     <string name="no_channel_number">No channel %1$d in this list</string>
-    <string name="player_hint_tv">OK: channels · ▲▼: switch · Back: exit</string>
+    <string name="player_hint_tv">OK: channels · hold OK: menu · ▲▼: switch · Back: exit</string>
 
     <!-- Playlists -->
     <string name="playlists_title">Playlists</string>
@@ -223,6 +223,59 @@
         <item quantity="one">%1$s programme</item>
         <item quantity="other">%1$s programmes</item>
     </plurals>
+
+    <!-- Watchlists -->
+    <string name="nav_watchlists">Watchlists</string>
+    <string name="watchlist_favorites">Favorites</string>
+    <string name="settings_watchlists">Watchlists</string>
+    <string name="settings_watchlists_desc">Your own channel lists, from any playlist</string>
+    <string name="add_to_watchlist">Add to watchlist…</string>
+    <string name="add_to_watchlist_title">Watchlists for %1$s</string>
+    <string name="new_watchlist">New watchlist</string>
+    <string name="field_watchlist_name">Watchlist name</string>
+    <string name="remove_from_watchlist">Remove from this watchlist</string>
+    <string name="done">Done</string>
+    <string name="watchlist_delete">Delete watchlist</string>
+    <string name="watchlist_delete_confirm_title">Delete %1$s?</string>
+    <string name="watchlist_delete_confirm_message">The list is removed. The channels stay in their playlists.</string>
+    <string name="watchlist_unavailable">Not available right now</string>
+    <string name="watchlist_empty">No channels yet. Long-press a channel anywhere and choose Add to watchlist.</string>
+    <plurals name="watchlist_channel_count">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
+
+    <!-- Search -->
+    <string name="search_field">Channel name</string>
+    <string name="search_hint">Type part of a name</string>
+    <string name="search_prompt">Type a name, or pick a country or group.</string>
+    <string name="search_no_results">No channels match.</string>
+    <string name="search_results">Search results</string>
+    <plurals name="search_count">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
+    <string name="search_capped">Showing the first %1$s; narrow the search to see the rest.</string>
+    <string name="filter_country">Country</string>
+    <string name="filter_group">Group</string>
+    <string name="filter_playlist">Playlist</string>
+    <string name="filter_any_country">Any country</string>
+    <string name="filter_any_group">Any group</string>
+    <string name="filter_all_playlists">All playlists</string>
+    <string name="filter_clear">Clear</string>
+
+    <!-- Channel health -->
+    <string name="health_working">Working</string>
+    <string name="health_offline">Offline</string>
+    <string name="health_blocked">Blocked</string>
+    <string name="health_check">Check channels</string>
+    <string name="health_checking">Checking %1$d of %2$d…</string>
+    <string name="health_stop">Stop</string>
+    <string name="health_summary">%1$d working · %2$d offline · %3$d blocked</string>
+    <string name="health_hide_offline">Hide %1$d offline</string>
+    <string name="health_hide_all">Hide %1$d offline and blocked</string>
+    <string name="health_dismiss">Keep all</string>
+    <string name="health_explained">Green works, red is offline, amber refuses this device (often blocked in your country).</string>
 
     <string name="press_back_again">Press Back again to exit</string>
 </resources>

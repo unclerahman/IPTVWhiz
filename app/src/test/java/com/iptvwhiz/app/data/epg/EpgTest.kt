@@ -61,7 +61,7 @@ class EpgTest {
 
     private fun channel(key: String, name: String, tvgId: String? = null) = Channel(
         playlistId = 1, stableKey = key, number = 1, name = name, originalName = name, logoUrl = null,
-        streamUrl = "", tvgId = tvgId, groupTitle = "G", originalGroup = "G", userAgent = null, referrer = null,
+        streamUrl = "", tvgId = tvgId, groupTitle = "G", originalGroup = "G", userAgent = null, referrer = null, country = null,
         hidden = false, favorite = false, sortOrder = 1.0,
     )
 

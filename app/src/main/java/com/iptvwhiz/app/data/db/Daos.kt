@@ -73,6 +73,9 @@ interface OverlayDao {
     @Query("SELECT * FROM group_settings WHERE playlistId = :playlistId")
     fun observeGroupSettings(playlistId: Long): Flow<List<GroupSetting>>
 
+    @Query("SELECT * FROM group_settings WHERE hidden = 1")
+    fun observeHiddenGroups(): Flow<List<GroupSetting>>
+
     @Query("SELECT * FROM group_settings WHERE playlistId = :playlistId")
     suspend fun groupSettings(playlistId: Long): List<GroupSetting>
 

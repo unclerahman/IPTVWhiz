@@ -36,15 +36,13 @@ class OrganizedPlaylist(
 
     val visibleCount: Int = channels.count(::isWatchable)
 
-    val favorites: List<Channel> = channels.filter { it.favorite && isWatchable(it) }.sortedWith(displayOrder)
-
     /**
-     * What browsing [key] shows: [ALL] = every watchable channel, [FAVORITES], or one group.
+     * What browsing [key] shows: [ALL] = every watchable channel, or one group.
      * A group the user opens directly shows its visible channels even if the group is hidden.
+     * (Watchlists span playlists and are built by WatchlistRepository.)
      */
     fun browse(key: String): List<Channel> = when (key) {
         ALL -> channels.filter(::isWatchable).sortedWith(displayOrder)
-        FAVORITES -> favorites
         else -> channels.filter { it.groupTitle == key && !it.hidden }.sortedWith(displayOrder)
     }
 
@@ -55,7 +53,13 @@ class OrganizedPlaylist(
     companion object {
         /** Pseudo-group keys. Real group keys come from playlists and can't start with \u0000. */
         const val ALL = "\u0000all"
-        const val FAVORITES = "\u0000favorites"
+        private const val WATCHLIST_PREFIX = "\u0000wl:"
+
+        /** Browse key for a watchlist, so watchlists can sit in the same list as groups. */
+        fun watchlistKey(id: Long) = "$WATCHLIST_PREFIX$id"
+
+        /** The watchlist id in a browse key, or null when the key is a group or [ALL]. */
+        fun watchlistId(key: String): Long? = key.removePrefix(WATCHLIST_PREFIX).takeIf { key.startsWith(WATCHLIST_PREFIX) }?.toLongOrNull()
 
         fun build(channels: List<Channel>, settings: List<GroupSetting>): OrganizedPlaylist {
             val byGroup = channels.groupBy { it.groupTitle }

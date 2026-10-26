@@ -51,6 +51,8 @@ import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.ChannelGroup
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.common.ChannelLogo
+import com.iptvwhiz.app.ui.common.HealthDot
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.formatCount
 import com.iptvwhiz.app.ui.state.ManageEvent
 import com.iptvwhiz.app.ui.state.ManageViewModel
@@ -204,7 +206,9 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
     val groups by vm.groups.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
     val channels by vm.channels.collectAsStateWithLifecycle()
-    val organized by vm.organized.collectAsStateWithLifecycle()
+    val health by vm.health.collectAsStateWithLifecycle()
+    val watchlists by vm.watchlists.collectAsStateWithLifecycle()
+    val favorites = watchlists.firstOrNull { it.isFavorites }?.entries?.map { it.ref }?.toSet().orEmpty()
     var editing by remember { mutableStateOf<Channel?>(null) }
     NameTakenToasts(vm)
 
@@ -216,6 +220,9 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
 
     Scaffold(topBar = { BackTopBar(group?.displayName.orEmpty(), onBack) }) { padding ->
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding)) {
+            item(key = "health") {
+                if (channels.isNotEmpty()) HealthBar(vm.healthCheck, channels, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
             items(local, key = { it.stableKey }) { channel ->
                 ListItem(
                     leadingContent = {
@@ -228,14 +235,20 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
                                     .dragHandle(
                                         reorder,
                                         channel.stableKey,
-                                        onMove = { from, to -> local = local.moved(from, to) },
+                                        // Item 0 is the health bar, so list indices are one ahead.
+                                        onMove = { from, to -> if (from >= 1 && to >= 1) local = local.moved(from - 1, to - 1) },
                                         onDrop = { key -> local.firstOrNull { it.stableKey == key }?.let { vm.moveChannel(local, it) } },
                                     ),
                             )
                             ChannelLogo(channel.name, channel.logoUrl, size = 40.dp)
                         }
                     },
-                    headlineContent = { Text(channel.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(channel.name, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            HealthDot(health[channel.ref], Modifier.padding(start = 8.dp))
+                        }
+                    },
                     supportingContent = if (channel.name != channel.originalName) {
                         { Text(stringResource(R.string.originally, channel.originalName), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     } else {
@@ -245,9 +258,9 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { vm.edits.toggleFavorite(channel) }) {
                                 Icon(
-                                    if (channel.favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    if (channel.ref in favorites) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                     contentDescription = stringResource(R.string.label_favorite),
-                                    tint = if (channel.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = if (channel.ref in favorites) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             Switch(checked = !channel.hidden, onCheckedChange = { vm.edits.setHidden(channel, !it) })
@@ -267,7 +280,7 @@ fun MobileManageGroupScreen(onBack: () -> Unit) {
     editing?.let { channel ->
         ChannelEditor(
             channel = channel,
-            organized = organized,
+            watchlists = watchlists,
             edits = vm.edits,
             onDone = { editing = null },
             onNameTaken = vm::nameTaken,
