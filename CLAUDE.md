@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (46 at 0.5.1)
+./gradlew testReleaseUnitTest      # JVM tests (50 at 0.6.0)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -59,6 +59,8 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
   - Per-channel user agent and referrer, short timeouts, retries with backoff, HLS fallback for links without `.m3u8`.
   - Errors are mapped to `PlaybackProblem`.
   - Video goes through `ui/common/PlayerSurface.kt`: SurfaceView on TV, TextureView on phone (black-screen fix for Xiaomi).
+  - `StreamStats` + `setStatsEnabled()` feed the optional quality chip (`ui/common/QualityBadge.kt`): resolution/FPS from decoder counters, Mbps from a `TransferListener`, sampled once a second only while switched on.
+- **Viewing options:** `AppPrefs.showQuality` / `AppPrefs.hideBlocked`, edited in Settings → Viewing options (`ui/tv/TvViewingScreen.kt`, `ui/mobile/MobileViewingScreen.kt`, `ViewingViewModel`). Hide blocked is applied in `LiveViewModel`, `SearchViewModel` and `PlayerViewModel` (zapping) by `OrganizedPlaylist.without(blocked)`; watchlists and Manage keep blocked channels.
 - **Player sources:** a route `player?src=&playlistId=&group=&key=` with `SOURCE_GROUP`, `SOURCE_WATCHLIST` and `SOURCE_QUEUE`. The queue holds search results via `container.playQueue`. See `ui/Destinations.kt`.
 
 ## Conventions and gotchas
@@ -77,7 +79,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.5.1)
+## Current status (0.6.0)
 
 | Milestone | Status |
 |---|---|
@@ -87,23 +89,27 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | M3 manage | ✅ Done |
 | M4 EPG basics | ✅ Done |
 | Backup | ✅ Done |
-| M5 polish | ◐ Search, watchlists and health are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+| M5 polish | ◐ Search, watchlists, health and the viewing options (quality chip, hide blocked, phone full screen) are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+
+**0.6.0 (2026-10-26):** quality overlay (phone top bar, TV quick menu), Settings → Viewing options with "Show video quality" and "Hide blocked channels", and a phone full-screen button that forces landscape. Verified on both emulators; see CHANGELOG for the numbers and PLAN §19 for the design. Database unchanged at v4. 50 JVM tests.
 
 ## Next steps (in rough priority)
 
 1. **Confirm the Redmi black-screen fix** with the owner.
    - If video is still black, ask whether sound plays and whether the spinner shows.
-   - Consider a "Playback info" item in the quick menu (state, resolution, codec, decoder, last error) to diagnose devices remotely.
-2. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
-3. **TV player Back:** on the error card, Back sometimes needs an extra press.
-4. **Settings:**
+   - The new quality chip is a first diagnostic: if it shows numbers while the screen is black, the decoder is running and the problem is the surface.
+   - Consider adding the quality chip to the "Playback info" idea in the quick menu (state, codec, decoder, last error) to diagnose devices remotely.
+2. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
+3. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
+4. **TV player Back:** on the error card, Back sometimes needs an extra press.
+5. **Settings:**
    - Player: buffer size, decoder preference, aspect ratio, inverse channel keys.
    - Appearance: theme, text size.
    - Per-playlist user agent.
-5. **M2 leftovers:** audio and subtitle track picker.
-6. **Before Play Store:**
+6. **M2 leftovers:** audio and subtitle track picker.
+7. **Before Play Store:**
    - Release keystore (keep it out of git; `*.keystore` and `keystore.properties` are ignored).
    - Move provider passwords from plain Room to Keystore-backed encryption.
    - Privacy policy; ads consent (UMP) when ads arrive; TV checklist.
-7. **Phase 2 (M6):** full guide grid, catch-up, PIN lock, a "set up from your phone" local web page for TV (PLAN §9).
-8. **Known limit:** the health probe can say Working when the playlist file answers but its segments are geo-blocked.
+8. **Phase 2 (M6):** full guide grid, catch-up, PIN lock, a "set up from your phone" local web page for TV (PLAN §9).
+9. **Known limit:** the health probe can say Working when the playlist file answers but its segments are geo-blocked.

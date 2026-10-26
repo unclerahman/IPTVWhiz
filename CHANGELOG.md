@@ -3,6 +3,24 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.0 (2026-10-26)
+
+**Added**
+- **Settings → Viewing options**, with two switches:
+  - **Show video quality:** a small chip over the video with what is actually arriving: resolution, frames per second and Mbps. It updates about once a second and is sampled only while it is switched on, so it costs nothing when off. You can also switch it on and off from the player: the top bar on a phone, the quick menu (hold OK / Menu) on TV. The chip says "Measuring…" until the first numbers arrive and leaves out a part it doesn't know yet.
+  - **Hide blocked channels:** channels the last Check channels run marked **Blocked** are left out of Live TV, search and channel zapping. They stay in your watchlists and in Manage channels (still shown with the amber **Blocked** dot), so you can always bring them back. Off by default.
+- **Full screen button in the phone player.** It forces landscape even when the phone's auto-rotate is off, and puts the normal rotation back when you leave full screen.
+
+**Tests:** 50 JVM tests (3 new for the quality chip text; a blocked-channel filter test came with the feature).
+
+**Verified on the emulators (2026-10-26)**
+- Phone (Android 15): quality chip showed `1280×720 · 26 fps · 0.6 Mbps`, then `1280×720 · 16 fps · 5.1 Mbps` on the same channel; the info button toggled it off and on. Full screen rotated the display to 2400×1080 (`ROTATION_90`) and the top bar offered "Exit full screen"; leaving restored portrait.
+- Phone, hide blocked ON (CNA was given a Blocked result for the test): Live dropped from 2,042 to 2,041 channels and Albania from 7 to 6, CNA was gone from Live and from the player's zapping list, searching CNA said "No channels match.", and Manage channels still listed it with the Blocked dot (`7 shown · 10 hidden`). Turning the switch off restored 2,042 and CNA.
+- TV (Android 14): the quick menu item read "Show quality info", the chip showed `1280×720 · 3.2 Mbps`, and the item changed to "Hide quality info" and removed the chip. The TV emulator did not report FPS for that stream, and the chip simply left it out.
+- **Known limits:** FPS and Mbps are what the device's decoder is doing, so they vary with the emulator/box and some streams report no FPS at all. Some Free-TV channels still fail on the TV emulator with `parsing manifest malformed` (a channel/decoder limit, not new in 0.6.0); use another channel. The Redmi black-screen fix from 0.5.1 is still unconfirmed on the real phone.
+
+**Database:** unchanged, still v4.
+
 ## 0.5.1 (2026-10-26)
 
 **Fixed**

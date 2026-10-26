@@ -241,7 +241,7 @@ Many public streams are geo-blocked or go offline at times, so expect some failu
 | M2 ◐ | TV player UX | Overlay list, channel up/down, number entry and info banner were pulled into M1; quick menu (hold OK / Menu) done in 0.5.0. Still to do: audio/subtitle track picker, "inverse channel keys" setting. |
 | M3 ✅ | Manage | Hide, rename, reorder (move mode + drag), custom groups; survives refresh. Done 2026-10-24, plus favorites. |
 | M4 ✅ | EPG basics | XMLTV import, now/next in list and player. Done 2026-10-25 (plus a Now & next Guide tab). |
-| M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
+| M5 | Polish & release | Search ✅, watchlists ✅, channel health ✅ (0.5.0, 2026-10-26); viewing options ✅ (0.6.0, 2026-10-26); still to do: settings (player, appearance), error states, store assets → **v1.0** |
 | M6+ | Phase 2 features | Guide grid, catch-up, PIN (backup file ✅ 2026-10-25, multi-playlist ✅ in M1) |
 
 ---
@@ -405,3 +405,38 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - A link that opens a web page (a blog post with a playlist pasted in) used to import as channels named `<html>`, and Check channels then crashed. The parser now only takes `scheme://` lines as links, and the probe can't crash on one bad channel.
 - Phone video now uses a TextureView after a report of black video on a Xiaomi Redmi Note 10; not yet confirmed on that phone. TV keeps the SurfaceView.
 - Next steps are kept in [CLAUDE.md](CLAUDE.md) ("Next steps") and the history in [CHANGELOG.md](CHANGELOG.md).
+
+### Notes (0.6.0, 2026-10-26)
+
+- **Viewing options (§19) done**, after a request for an in-player quality readout and for blocked channels to stay out of the way.
+- **Quality overlay:** `StreamStats` lives in `player/LivePlayer.kt` and is filled by a once-a-second sampler that is only scheduled while the setting (or the player toggle) is on. Mbps comes from a Media3 `TransferListener` on the network data source; resolution and frames from `player.videoDecoderCounters`. `QualityBadge` (shared by TV and phone) formats it and shows "Measuring…" until the first sample.
+  - Visible in the phone player's top bar (info button) and the TV quick menu (Menu / hold OK → Show quality info / Hide quality info).
+  - The setting is `AppPrefs.showQuality`; it is remembered across restarts.
+  - Verified on the phone emulator (`1280×720 · 26 fps · 0.6 Mbps`, later `16 fps · 5.1 Mbps`) and the TV emulator (`1280×720 · 3.2 Mbps`, no FPS reported by that decoder). The badge leaves out unknown parts by design.
+- **Hide blocked channels:** `AppPrefs.hideBlocked`, applied by `LiveViewModel`, `SearchViewModel` and the zapping queue in `PlayerViewModel` through `OrganizedPlaylist.without(blocked)`. Watchlists and Manage channels deliberately keep blocked channels so they can be un-hidden/brought back. Verified with an injected Blocked result for CNA: Live 2,042 → 2,041 and Albania 7 → 6, no CNA in search or zapping, still listed with the Blocked dot in Manage; switching it off restored everything.
+- **Phone full screen:** the player's top-bar button forces landscape with `requestedOrientation` even when auto-rotate is off, and restores `UNSPECIFIED` on exit. Verified: 2400×1080, `ROTATION_90`.
+- **Database:** unchanged (v4); both switches are in SharedPreferences, so no migration.
+- **Tests:** 50 JVM tests (3 new `QualityBadgeTest` cases for the chip text; the blocked filter test was already in the 0.5.1 tree at 47).
+- **Limits to remember:** FPS/Mbps are device- and stream-dependent; the TV emulator reported no FPS for Ora News. Some Free-TV channels still fail with `parsing manifest malformed` on the emulator (channel-side, not this change). Verify the Redmi TextureView fix on the real phone when possible.
+
+---
+
+## 19. Viewing options: quality overlay and blocked channels (0.6.0, 2026-10-26)
+
+**Why:** two small requests from the owner. First, "what quality am I actually getting?" (resolution, frames, bitrate) without opening another app. Second, after Check channels marks a channel **Blocked**, it should not keep cluttering Live TV, search or zapping, but it must never disappear for good.
+
+**Show video quality**
+
+- A chip over the video: `1920×1080 · 25 fps · 4.2 Mbps`. Parts that are not known yet are left out, so a stream with no FPS shows just `1280×720 · 3.2 Mbps`; before the first sample it says "Measuring…".
+- Sampled once a second, and only while switched on. The numbers are measured, not read from the playlist: resolution and rendered frames from the decoder counters, Mbps from bytes actually received.
+- Switched on in Settings → Viewing options, and from the player itself: phone top bar, TV quick menu. Both read/write the same `AppPrefs.showQuality` flag, so the setting stays in step.
+- Off by default: it is a debugging/curiosity feature, not something to put over everyone's video.
+
+**Hide blocked channels**
+
+- Only **Blocked** results are hidden (not Offline or Working). The health check already distinguishes refused/geo-blocked links from dead ones; blocking is the one the user most often cannot fix.
+- Applied in Live TV (group counts and list), search results and the zapping queue. It is not applied in watchlists (if you put a channel there, you want it) or Manage channels (where you need to see it to bring it back). Manage still shows the Blocked dot.
+- Off by default. Turn it off and blocked channels come back everywhere immediately.
+
+**Not done:** no per-channel "ignore this block" flag, and hiding does not delete a health result. A channel can come back on its own when a later check or playback records a different status.
+
