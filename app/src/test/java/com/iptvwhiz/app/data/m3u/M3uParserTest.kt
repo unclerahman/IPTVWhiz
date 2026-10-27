@@ -3,6 +3,7 @@ package com.iptvwhiz.app.data.m3u
 import com.iptvwhiz.app.data.drm.DrmType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -144,6 +145,45 @@ class M3uParserTest {
         assertEquals(DrmType.WIDEVINE, entry.drm?.type)
         assertEquals("https://license.example/wp", entry.drm?.licenseUrl)
         assertEquals("Kodi/21", entry.drm?.headers?.get("User-Agent"))
+    }
+
+    @Test
+    fun `KODIPROP DRM lines before EXTINF belong to the next channel`() {
+        // Some providers (e.g. Astro-style playlists) put the DRM block before #EXTINF.
+        val entries = parse(
+            """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="plain",Plain channel
+            https://example.com/plain.m3u8
+            #KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+            #KODIPROP:inputstream.adaptive.license_key={"keys":[{"kty":"oct","k":"ABEiM0RVZneImaq7zN3u_w","kid":"_u3wDe7erb7v8Lqt8A3QDQ"}],"type":"temporary"}
+            #EXTINF:-1 tvg-id="drm",ClearKey channel
+            https://example.com/drm.mpd
+            """.trimIndent(),
+        ).entries
+        assertNull(entries[0].drm)
+        assertEquals(DrmType.CLEAR_KEY, entries[1].drm?.type)
+        assertTrue(entries[1].drm!!.isValid)
+    }
+
+    @Test
+    fun `DRM block does not leak past the channel it was written for`() {
+        val entries = parse(
+            """
+            #EXTM3U
+            #EXTINF:-1,DRM channel
+            #KODIPROP:inputstream.adaptive.license_type=clearkey
+            #KODIPROP:inputstream.adaptive.license_key=feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff
+            https://example.com/drm.mpd
+            #EXTINF:-1,Plain after
+            https://example.com/plain.m3u8
+            #EXTINF:-1,Plain later
+            https://example.com/later.m3u8
+            """.trimIndent(),
+        ).entries
+        assertEquals(DrmType.CLEAR_KEY, entries[0].drm?.type)
+        assertNull(entries[1].drm)
+        assertNull(entries[2].drm)
     }
 
     @Test

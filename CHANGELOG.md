@@ -3,6 +3,20 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.2 (2026-10-27)
+
+**Fixed**
+- **Channels whose playlist writes the DRM lines *before* the channel line now play.** Some providers (including the list behind `https://bit.ly/fasgun`) put the `#KODIPROP` block above `#EXTINF` instead of between `#EXTINF` and the stream link. 0.6.1 threw those details away when it read `#EXTINF`, so the channel lost its key and stayed black. Kodi applies a `#KODIPROP` block to the next stream link, and the app now does the same. 45 of the 214 channels in that playlist were written this way, TV3 SD among them.
+- **A channel that never shows a picture now says so.** If nothing has been drawn after 20 seconds and the player has not reported an error, it shows "This channel isn't sending a picture..." with **Try again**, instead of a silent black screen. That is what a copy-protected stream looks like when the playlist carries no key for it. Audio-only channels are left alone, and a channel that starts normally never sees the message.
+- Refreshing a playlist is enough to pick up the fix for channels you already imported; there is no need to delete and re-add it.
+
+**Tests:** 63 JVM tests (2 new: DRM lines before `#EXTINF` attach to the next channel, and a DRM block does not leak to later channels).
+
+**Verified on the phone emulator (Android 15, 2026-10-27)** with `testdata/tv3-test.m3u` (the real TV3 SD stream, three line orders):
+- DRM lines before `#EXTINF`: the key was stored (`clearkey`) and the channel played, `720×540 · 23 fps · 0.6 Mbps`.
+- DRM lines after `#EXTINF`: played as in 0.6.1.
+- The same stream with its DRM lines removed: after 20 seconds the new "isn't sending a picture" card appeared with **Try again**, instead of a black screen that never explains itself.
+
 ## 0.6.1 (2026-10-26)
 
 **Added**

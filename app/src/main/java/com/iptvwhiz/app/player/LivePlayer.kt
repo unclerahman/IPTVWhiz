@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /** Why a channel can't play, for a plain-language message. */
-enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Drm, Other }
+enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Drm, NoVideo, Other }
 
 data class LivePlayerState(
     val buffering: Boolean = false,
@@ -127,6 +127,23 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     private var stopped = false
     /** A channel that has played and then dropped is worth more retries than one that never started. */
     private var hasPlayed = false
+    /** Set once the decoder puts a frame on screen; until then the picture is black. */
+    private var hasRenderedFrame = false
+
+    /**
+     * Some streams report no error and simply never show a picture: the manifest is copy-protected
+     * but the playlist has no usable key, or the provider sends nothing decodable. Without this the
+     * screen stays black with no explanation, so after [NO_VIDEO_MS] we say so and offer a retry.
+     */
+    private val noVideoWatchdog = Runnable {
+        if (hasRenderedFrame || stopped || _state.value.problem != null) return@Runnable
+        val tracks = player.currentTracks.groups
+        // Audio-only channels never render a frame; only complain when the stream has video.
+        val hasVideo = tracks.isEmpty() || tracks.any { it.type == C.TRACK_TYPE_VIDEO }
+        if (hasVideo) {
+            _state.update { it.copy(buffering = false, problem = PlaybackProblem.NoVideo) }
+        }
+    }
 
     init {
         player.addListener(object : Player.Listener {
@@ -135,8 +152,15 @@ class LivePlayer(context: Context, http: OkHttpClient) {
                 if (playbackState == Player.STATE_READY) {
                     retries = 0
                     hasPlayed = true
-                    _state.update { it.copy(problem = null, detail = null) }
+                    // Only clear a message once something is actually on screen.
+                    if (hasRenderedFrame) _state.update { it.copy(problem = null, detail = null) }
                 }
+            }
+
+            override fun onRenderedFirstFrame() {
+                hasRenderedFrame = true
+                handler.removeCallbacks(noVideoWatchdog)
+                _state.update { if (it.problem == PlaybackProblem.NoVideo) it.copy(problem = null) else it }
             }
 
             override fun onPlayerError(error: PlaybackException) = handleError(error)
@@ -255,6 +279,9 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         player.setMediaSource(source)
         player.prepare()
         player.playWhenReady = true
+        hasRenderedFrame = false
+        handler.removeCallbacks(noVideoWatchdog)
+        handler.postDelayed(noVideoWatchdog, NO_VIDEO_MS)
     }
 
     /**
@@ -326,6 +353,8 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     private companion object {
         const val MAX_RETRIES = 3
         const val STATS_MS = 1_000L
+        /** How long a black picture may last before we explain it. */
+        const val NO_VIDEO_MS = 20_000L
         /** Seconds averaged for the overlay, so the numbers don't jitter. */
         const val SMOOTHING = 3
 

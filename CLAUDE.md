@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (61 at 0.6.1)
+./gradlew testReleaseUnitTest      # JVM tests (63 at 0.6.2)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -54,12 +54,12 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
   - Search: `ChannelSearch` (pure, tested); `Channel.effectiveCountry`.
   - EPG: `data/epg`. `XmltvParser` (streaming), `EpgRepository` (max 10 links, `selectLinks`), daily `EpgWork`.
   - Backup: `data/backup`. JSON file, playlists matched by fingerprint, newest edit wins, format version 1 with optional fields.
-  - DRM: `data/drm/DrmInfo.kt` (pure, tested) parses Kodi `#KODIPROP` `license_type`/`license_key`; `M3uParser` attaches a `DrmInfo` per entry. Four nullable `drm*` columns on `channels`, exposed by `channel_view`.
+  - DRM: `data/drm/DrmInfo.kt` (pure, tested) parses Kodi `#KODIPROP` `license_type`/`license_key`; `M3uParser` attaches a `DrmInfo` to the next stream link, whether the block sits above or below `#EXTINF` (Kodi semantics; 0.6.2 fixed the above-`#EXTINF` case). Four nullable `drm*` columns on `channels`, exposed by `channel_view`.
   - Parsers: `M3uParser` (only accepts `scheme://` lines as links) and `XtreamClient`.
 - **Player (`player/LivePlayer.kt`):** Media3 1.5.1 ExoPlayer with OkHttp, HLS and DASH.
   - Per-channel user agent and referrer, short timeouts, retries with backoff, HLS fallback for links without `.m3u8`.
   - Errors are mapped to `PlaybackProblem`.
-  - DRM: a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys from the playlist use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` with the playlist's headers; provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`. `PlaybackProblem.Drm` covers the missing-key case and Media3's 6000-range errors; DRM failures are not recorded as Offline. The app never extracts or guesses keys (PLAN §20).
+  - DRM: a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys from the playlist use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` with the playlist's headers; provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`. `PlaybackProblem.Drm` covers the missing-key case and Media3's 6000-range errors; DRM failures are not recorded as Offline. `PlaybackProblem.NoVideo` is the silent case: a 20 s first-frame watchdog (`noVideoWatchdog`), cancelled by `onRenderedFirstFrame`, skipped for streams with no video track. The app never extracts or guesses keys (PLAN §20).
   - Video goes through `ui/common/PlayerSurface.kt`: SurfaceView on TV, TextureView on phone (black-screen fix for Xiaomi).
   - `StreamStats` + `setStatsEnabled()` feed the optional quality chip (`ui/common/QualityBadge.kt`): resolution/FPS from decoder counters, Mbps from a `TransferListener`, sampled once a second only while switched on.
 - **Viewing options:** `AppPrefs.showQuality` / `AppPrefs.hideBlocked`, edited in Settings → Viewing options (`ui/tv/TvViewingScreen.kt`, `ui/mobile/MobileViewingScreen.kt`, `ViewingViewModel`). Hide blocked is applied in `LiveViewModel`, `SearchViewModel` and `PlayerViewModel` (zapping) by `OrganizedPlaylist.without(blocked)`; watchlists and Manage keep blocked channels.
@@ -81,7 +81,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.6.1)
+## Current status (0.6.2)
 
 | Milestone | Status |
 |---|---|
@@ -93,6 +93,8 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | Backup | ✅ Done |
 | M5 polish | ◐ Search, watchlists, health, the viewing options (quality chip, hide blocked, phone full screen) and DRM playback are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
 
+**0.6.2 (2026-10-27):** fixed the remaining black-screen channels. Some playlists (the owner's own list among them: 45 of 214 entries) put the `#KODIPROP` DRM block *above* `#EXTINF`; 0.6.1 cleared the DRM state at `#EXTINF`, so those channels lost their key and stayed black with no error. `M3uParser` now keeps the block for the next stream link (Kodi's rule) and clears it after the channel is emitted. Also added `PlaybackProblem.NoVideo`: a 20 s first-frame watchdog shows "This channel isn't sending a picture…" with **Try again** instead of a silent black screen; cancelled by `onRenderedFirstFrame` and skipped for audio-only streams. Verified on the phone emulator with the real TV3 SD stream in all three line orders (`testdata/tv3-test.m3u`): before `#EXTINF` played `720×540 · 23 fps · 0.6 Mbps`, no DRM lines showed the new card. Database unchanged at v5. 63 JVM tests. See CHANGELOG and PLAN §20.
+
 **0.6.1 (2026-10-26):** DRM playback for Kodi-style ClearKey and Widevine/PlayReady playlists (`#KODIPROP`), so protected channels play instead of a blank black screen; a friendly copy-protection card when the key/license doesn't work. Database v5 (four nullable DRM columns; v4 → v5 migration verified with an existing 0.6.0 database). Verified on the phone emulator with Google's Shaka demo assets — ClearKey key, ClearKey license server, Widevine license server and plain HLS all played. 61 JVM tests. See CHANGELOG and PLAN §20.
 
 **0.6.0 (2026-10-26):** quality overlay (phone top bar, TV quick menu), Settings → Viewing options with "Show video quality" and "Hide blocked channels", and a phone full-screen button that forces landscape. Verified on both emulators; see CHANGELOG for the numbers and PLAN §19 for the design. Database unchanged at v4. 50 JVM tests.
@@ -103,7 +105,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
    - If video is still black, ask whether sound plays and whether the spinner shows.
    - The new quality chip is a first diagnostic: if it shows numbers while the screen is black, the decoder is running and the problem is the surface.
    - Consider adding the quality chip to the "Playback info" idea in the quick menu (state, codec, decoder, last error) to diagnose devices remotely.
-2. **Ask the owner about 0.6.1:** whether the channels that used to show a black screen now play, and what the copy-protection card says if one still doesn't. Most real providers use Widevine, and a box without a Widevine module can't play those; ClearKey works everywhere.
+2. **Ask the owner about 0.6.2:** whether TV3 SD (and the other channels in that playlist that used to be black) now play after a playlist refresh, and whether the "isn't sending a picture" card appears for any channel that still doesn't. The owner's phone may still be on 0.6.0/0.6.1, so confirm they installed 0.6.2 first.
 3. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
 4. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
 5. **TV player Back:** on the error card, Back sometimes needs an extra press.

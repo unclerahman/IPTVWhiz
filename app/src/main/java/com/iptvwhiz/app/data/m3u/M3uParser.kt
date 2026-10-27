@@ -62,13 +62,15 @@ object M3uParser {
                     extGroup = null
                     userAgent = null
                     referrer = null
-                    licenseType = null
-                    licenseKey = null
+                    // DRM lines are deliberately kept: Kodi applies a #KODIPROP block to the next
+                    // stream link, and some providers put the block *before* #EXTINF. They are
+                    // cleared once a channel is emitted, so they cannot leak further down.
                 }
                 line.startsWith("#EXTGRP:", ignoreCase = true) ->
                     extGroup = line.substringAfter(':').trim().ifEmpty { null }
                 line.startsWith("#KODIPROP:", ignoreCase = true) -> {
-                    // Kodi puts DRM details here, after the #EXTINF line and before the stream link.
+                    // Kodi puts DRM details here, usually between #EXTINF and the stream link, but
+                    // some playlists put them before #EXTINF. Either way they belong to the next link.
                     val option = line.substringAfter(':')
                     val key = option.substringBefore('=').trim().lowercase()
                     val value = option.substringAfter('=', "").trim().ifEmpty { null }

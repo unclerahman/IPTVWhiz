@@ -422,13 +422,20 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 ### Notes (0.6.1, 2026-10-26)
 
 - **DRM playback (§20) done**, after the owner reported some channels showing only a blank black screen. Those playlists carry Kodi's `#KODIPROP` lines with a ClearKey key or a Widevine/PlayReady license link.
-- **Parsing:** `data/drm/DrmInfo.kt` reads `inputstream.adaptive.license_type` / `license_key` per `#EXTINF` entry in `M3uParser`; the DRM state resets at each entry so it can't leak to the next channel. ClearKey accepts `<kid>:<key>` hex, a ready JSON key response, or a license URL. Widevine/PlayReady only accept a license URL. Headers after `|` use Kodi's `Name=Value&…` form.
+- **Parsing:** `data/drm/DrmInfo.kt` reads `inputstream.adaptive.license_type` / `license_key` per `#EXTINF` entry in `M3uParser`. (Since 0.6.2 the state survives `#EXTINF`, because some playlists put the block above it; it is cleared once a channel is emitted, so it still can't leak.) ClearKey accepts `<kid>:<key>` hex, a ready JSON key response, or a license URL. Widevine/PlayReady only accept a license URL. Headers after `|` use Kodi's `Name=Value&…` form.
 - **Storage:** four nullable columns on `channels` (`drmType`, `drmKey`, `drmLicenseUrl`, `drmHeaders`), also exposed by `channel_view`/`Channel`; database v5 with `MIGRATION_4_5` (`SchemaMigrations.schema4to5`).
 - **Playback:** `LivePlayer` sets a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` plus the playlist's headers. Provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`, so the device's own DRM modules do the work.
 - **Failure path:** a DRM channel with no usable key/license shows `PlaybackProblem.Drm` and the friendly card. Media3's 6000-range DRM errors also map to it. A DRM failure is **not** recorded as Offline by the health recorder, because it says nothing about whether the stream is alive.
 - **Verified** on the phone emulator with Google's public Shaka assets: ClearKey key, ClearKey license server, Widevine license server and a plain HLS channel all played; a broken ClearKey entry showed the message instead of a black screen. See CHANGELOG for the numbers.
 - **Tests:** 61 JVM tests (9 `DrmInfoTest`, 2 `M3uParserTest` DRM cases).
 - **Deliberate non-goals:** no key extraction from the device, no license-server bypass, no acceptance of raw Widevine/PlayReady keys. Only what the user's playlist provides is used.
+
+### Notes (0.6.2, 2026-10-27)
+
+- **Bug fixed, found on the owner's own playlist** (`https://bit.ly/fasgun`, TV3 SD). 45 of its 214 entries write the `#KODIPROP` block **above** `#EXTINF`, not between `#EXTINF` and the stream link. 0.6.1 cleared the DRM state at `#EXTINF`, so those channels lost the key, got no DRM session and stayed black with no error — exactly what the owner saw. `M3uParser` now keeps the state across `#EXTINF` (Kodi's rule: a `#KODIPROP` block belongs to the next stream link) and still clears it once a channel is emitted, so it cannot leak. `testdata/tv3-test.m3u` covers all three orders with the real TV3 SD stream.
+- **New `PlaybackProblem.NoVideo`** after a 20 s first-frame watchdog in `LivePlayer`. Some encrypted streams fail without an error (no key in the playlist, nothing decodable), which used to be an unexplained black screen. The card says the channel isn't sending a picture and offers **Try again**. Cancelled by `onRenderedFirstFrame`, and skipped when the stream has no video track, so audio-only channels and normal channels never see it. Not recorded as Offline by the health recorder.
+- **Tests:** 63 JVM tests (2 new `M3uParserTest` cases: DRM before `#EXTINF`, and no leak to later channels). Database unchanged at v5.
+- **Verified** on the phone emulator: DRM before `#EXTINF` stored `clearkey` and played `720×540 · 23 fps · 0.6 Mbps`; the same stream with its DRM lines removed showed the new card after 20 s; a normal channel was unaffected.
 
 ---
 
@@ -478,10 +485,11 @@ https://server/stream.mpd
 
 **How it plays**
 
-- `data/drm/DrmInfo.kt` holds the model and parsing. `M3uParser` attaches a `DrmInfo` to each entry and resets it on every `#EXTINF`.
+- `data/drm/DrmInfo.kt` holds the model and parsing. `M3uParser` attaches a `DrmInfo` to each entry. Since 0.6.2 the DRM state is not reset at `#EXTINF` (Kodi applies a `#KODIPROP` block to the next stream link, and some providers write it above `#EXTINF`); it is cleared after a channel is emitted, so it cannot leak to a later channel.
 - The data is stored on the channel (`drmType`, `drmKey`, `drmLicenseUrl`, `drmHeaders`) so it survives refresh and works offline; `channel_view` exposes it as `Channel`. Database v5.
 - `LivePlayer` builds a `DefaultDrmSessionManager` for the channel and installs it through `DefaultMediaSourceFactory.setDrmSessionManagerProvider`. The device's own DRM modules (`FrameworkMediaDrm.DEFAULT_PROVIDER`) do the decryption; the app only supplies keys/licenses.
 - `PlaybackProblem.Drm` (and Media3's 6000-range error codes) show "This channel is copy-protected…" with a short hint and **Try again**. The health recorder ignores DRM failures so a channel isn't marked Offline just because its key is wrong.
+- `PlaybackProblem.NoVideo` covers the silent case: encrypted but no error raised (e.g. the playlist has no key for that stream). `LivePlayer` starts a 20 s first-frame watchdog on every load, cancels it in `onRenderedFirstFrame`, and skips it for streams with no video track (audio-only). See the 0.6.2 notes above.
 
 **Limits, on purpose**
 

@@ -81,6 +81,7 @@
     <string name="playback_no_connection">Couldn\'t connect. Check your internet connection.</string>
     <string name="playback_unsupported">This channel\'s format isn\'t supported on this device.</string>
     <string name="playback_drm">This channel is copy-protected, and its key didn\'t work on this device. Check the key in your playlist, or try another channel.</string>
+<string name="playback_no_video">This channel isn\'t sending a picture. It may be copy-protected without a key in your playlist, or the stream may be down. Try again, or check the channel in your playlist.</string>
     <string name="playback_other">Couldn\'t play this channel.</string>
     <string name="next_channel">Next channel</string>
     <string name="previous_channel">Previous channel</string>
