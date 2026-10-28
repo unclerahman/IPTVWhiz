@@ -59,20 +59,24 @@ fun ChannelLogo(name: String, logoUrl: String?, size: Dp, modifier: Modifier = M
 }
 
 /** Dark tile in both themes: IPTV logos are mostly made for dark backgrounds, and white logos vanish on light ones. */
-private val LogoTile = Color(0xFF2A3040)
+private val LogoTile = Color(0xFF22223A)
 
+/** Deep, low-saturation tones so a screen full of initials stays calm; white text clears 7:1 on each. */
 private val palette = listOf(
-    Color(0xFF7C5CFF), Color(0xFF0EA5E9), Color(0xFF10B981), Color(0xFFF59E0B),
-    Color(0xFFEF4444), Color(0xFFEC4899), Color(0xFF6366F1), Color(0xFF14B8A6),
+    Color(0xFF312E81), Color(0xFF1E3A8A), Color(0xFF065F46), Color(0xFF92400E),
+    Color(0xFF991B1B), Color(0xFF831843), Color(0xFF164E63), Color(0xFF4C1D95),
 )
 
 private fun colorFor(name: String): Color = palette[(name.hashCode() and Int.MAX_VALUE) % palette.size]
 
 private fun initials(name: String): String {
     val words = name.split(' ', '-', '_', '.').filter { w -> w.firstOrNull()?.isLetterOrDigit() == true }
+    // Playlists often prefix the channel number ("1 TV3"); don't repeat it in the tile when a
+    // real word is available.
+    val meaningful = words.filter { w -> w.any { it.isLetter() } }.ifEmpty { words }
     return when {
-        words.isEmpty() -> "TV"
-        words.size == 1 -> words[0].take(2)
-        else -> "${words[0].first()}${words[1].first()}"
+        meaningful.isEmpty() -> "TV"
+        meaningful.size == 1 -> meaningful[0].take(2)
+        else -> "${meaningful[0].first()}${meaningful[1].first()}"
     }.uppercase()
 }

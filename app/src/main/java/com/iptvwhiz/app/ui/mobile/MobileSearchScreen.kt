@@ -5,6 +5,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,12 +19,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -165,6 +167,13 @@ private fun ChipMenu(
             selected = selected,
             onClick = { open = true },
             label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            // Same treatment as the Live TV chips, so both filter rows read as one system.
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(anyLabel) }, onClick = { open = false; onPick(null) })
@@ -175,37 +184,47 @@ private fun ChipMenu(
     }
 }
 
-/** "Check channels" → progress → summary with "Hide N offline". */
+/**
+ * "Check channels" → progress → summary with "Hide N offline".
+ *
+ * The done state stacks the summary over its actions: three buttons in one row do not fit a phone
+ * in portrait, and a horizontally scrolling row hides the last one off-screen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun HealthBar(check: HealthCheck, channels: List<Channel>, modifier: Modifier = Modifier) {
     val state by check.state.collectAsStateWithLifecycle()
-    Row(
-        modifier.horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        when (val current = state) {
-            HealthCheckState.Idle -> OutlinedButton(onClick = { check.start(channels) }) { Text(stringResource(R.string.health_check)) }
-            is HealthCheckState.Running -> {
-                Text(stringResource(R.string.health_checking, current.done, current.total), color = MaterialTheme.colorScheme.primary)
-                TextButton(onClick = check::stop) { Text(stringResource(R.string.health_stop)) }
-            }
-            is HealthCheckState.Done -> {
-                Text(
-                    stringResource(R.string.health_summary, current.summary.working, current.summary.offline, current.summary.blocked),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+    when (val current = state) {
+        HealthCheckState.Idle -> OutlinedButton(onClick = { check.start(channels) }, modifier = modifier) {
+            Text(stringResource(R.string.health_check))
+        }
+        is HealthCheckState.Running -> Row(
+            modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.health_checking, current.done, current.total), color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = check::stop) { Text(stringResource(R.string.health_stop)) }
+        }
+        is HealthCheckState.Done -> Column(modifier) {
+            Text(
+                stringResource(R.string.health_summary, current.summary.working, current.summary.offline, current.summary.blocked),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (current.offline.isNotEmpty()) {
-                    Button(onClick = { check.hide(includeBlocked = false) }) {
+                    TextButton(onClick = { check.hide(includeBlocked = false) }) {
                         Text(stringResource(R.string.health_hide_offline, current.offline.size))
                     }
                 }
                 if (current.blocked.isNotEmpty()) {
-                    OutlinedButton(onClick = { check.hide(includeBlocked = true) }) {
+                    TextButton(onClick = { check.hide(includeBlocked = true) }) {
                         Text(stringResource(R.string.health_hide_all, current.offline.size + current.blocked.size))
                     }
                 }
-                TextButton(onClick = check::dismiss) { Text(stringResource(R.string.health_dismiss)) }
+                TextButton(onClick = check::dismiss) {
+                    Text(stringResource(R.string.health_dismiss), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }

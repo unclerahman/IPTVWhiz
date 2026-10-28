@@ -445,6 +445,16 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - **Tests:** 73 JVM tests (10 new in `DrmDiagnosticsTest`). Database unchanged at v5.
 - **Verified** on the phone emulator with `testdata/drm-diagnostics-test.m3u`: stale key ID, license HTTP 405, missing key, and a working control channel. See CHANGELOG for the exact strings.
 
+### Notes (0.6.4, 2026-10-28)
+
+- **Phone UI polish, no behaviour change.** The phone app now uses the same dark, low-glare system as the TV app. Tokens live in `ui/theme/Brand.kt` and are shared by `MobileTheme.kt` and `TvTheme.kt`, so the two layouts cannot drift apart; `res/values/colors.xml` (launcher/splash) matches.
+- **Palette:** midnight indigo brand (`#1E1B4B` deep, `#4338CA`, border `#312E81`), background `#0F0F23`, cards `#1B1B30`, muted `#27273B`, muted text `#94A3B8`, live/on-air green `#22C55E`, error `#EF4444`. M3 dark `primary` is indigo-300 `#A5B4FC` so text and icons clear 4.5:1 on the navy background; the deep tones fill buttons and containers.
+- **Dark-only on phones, on purpose.** `IptvWhizMobileTheme(darkTheme = true)` keeps the light scheme compiled for a future Appearance setting, but the default no longer follows the system. `MainActivity` passes `SystemBarStyle.dark` so the status/nav icons stay light even when the phone itself is in light mode. The TV theme is unchanged in layout and still always dark.
+- **Typography deviation:** the design system recommends Inter. A ~0.5 MB font is not bundled; `AppTypography` uses the system sans with tighter tracking and medium/semibold titles to get the same feel at no size cost.
+- **What changed on screen:** Live TV header with the provider name, All channels first, count chips, loading and icon empty states, number badge + favourite heart + `HealthBadge` (Offline/Blocked only — a green dot on every working channel is noise), inset dividers, group subtitle only when the visible list mixes groups. Settings split into Setup / Playback / App & data with tinted icons, chevrons and **Soon** pills; About is an info row with the version. Player error card is compact enough for the portrait 16:9 area, with the diagnostics line and both actions; "Tuning in…" while buffering; LIVE pill and `#number · group`; current row accent bar. Search and Live TV share the same chip styling; the health summary stacks its actions instead of scrolling off-screen.
+- **Not touched:** navigation, ViewModels, database (v5), player logic, DRM handling, TV layout.
+- **Tests:** 73 JVM tests, unchanged.
+
 ---
 
 ## 19. Viewing options: quality overlay and blocked channels (0.6.0, 2026-10-26)

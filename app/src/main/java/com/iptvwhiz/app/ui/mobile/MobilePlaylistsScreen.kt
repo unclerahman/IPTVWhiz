@@ -102,12 +102,17 @@ fun MobilePlaylistsScreen(onAddPlaylist: () -> Unit, onBack: () -> Unit) {
                 val isActive = playlist.id == activeId
                 ListItem(
                     leadingContent = {
-                        if (isActive) {
-                            Icon(
-                                Icons.Filled.CheckCircle,
-                                contentDescription = stringResource(R.string.playlist_active),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                        // Reserve the slot even when this playlist is not active, so every title
+                        // starts at the same x.
+                        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                            if (isActive) {
+                                Icon(
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = stringResource(R.string.playlist_active),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     },
                     headlineContent = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },

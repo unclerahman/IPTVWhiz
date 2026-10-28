@@ -3,6 +3,25 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.4 (2026-10-28)
+
+**Improved**
+- **A new look for the phone app.** The palette, type and spacing were reworked around a dark, low-glare design (deep navy background, indigo accents, a green "live" accent). The phone app is now dark-only, like the TV app: the video is the brightest thing on screen, and the status bar icons stay readable either way.
+- **Live TV is calmer and easier to scan.** A "Live TV" header with your provider's name underneath, **All channels** first in the chip row with the number of channels on every chip, a proper loading state, and friendly icon empty states. Each row shows the channel number, a heart for favourites and, after a check, an **Offline** or **Blocked** label. Dividers start after the logo, and the group name under each channel is hidden when the whole list is from one group.
+- **Settings is grouped and easier to read.** Three sections (**Setup**, **Playback**, **App & data**), tinted icons, chevrons on the rows that open something, and a **Soon** pill on Player and Appearance instead of a toast. About is now a plain information row that shows the version, with no dead tap.
+- **The player explains failures without covering the picture.** The error card is compact enough to sit inside the portrait video area: a warning icon, the reason, the small diagnostics line, and **Try again** / **Next channel** side by side. While a channel is tuning it says "Tuning in…". The now-playing panel adds a **LIVE** pill and `#number · group`, the playing row in the channel list has an accent bar, and the quality badge and side zap buttons step aside when an error is showing.
+- **Watchlists, Playlists and Search match the new style.** The filter chips look the same in Search and Live TV, playlist titles line up whether or not a playlist is active, and the "Check channels" summary puts its actions on their own line instead of running off the screen.
+- **Logo tiles read better:** initials skip a leading number ("1 TV3…" now shows **TS**, not **1T**), and the fallback colours are deeper so a screen full of them stays quiet.
+- The TV app shares the new colours and stays dark, as before; its layout is unchanged.
+
+**Notes**
+- The design tool suggested the Inter font. It is not bundled (about 0.5 MB): the system font is used with a tuned size/weight/tracking scale instead, which keeps the APK small and native.
+- No behaviour, settings or data changed. Database stays at v5.
+
+**Tests:** 73 JVM tests, unchanged (this release has no logic changes).
+
+**Verified on the phone emulator (Android 15, 2026-10-28):** Live TV with counts and the Offline badge, Guide empty state, Settings (all three sections, Soon pills, About version), Playlists, Watchlists and the watchlist contents, Manage channels and a group, Search results, the add-playlist screen, and the player's tuning and error states.
+
 ## 0.6.3 (2026-10-28)
 
 **Improved**
