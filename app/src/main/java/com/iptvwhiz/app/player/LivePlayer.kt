@@ -20,7 +20,9 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager.MissingSchemeDataException
 import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.ExoMediaDrm
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
 import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
 import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
@@ -29,8 +31,12 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvwhiz.app.AppContainer
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.drm.DrmInfo
+import com.iptvwhiz.app.data.drm.DrmKeyIds
 import com.iptvwhiz.app.data.drm.DrmType
+import com.iptvwhiz.app.data.drm.clearKeyMatches
+import com.iptvwhiz.app.data.drm.drmFailureDetail
 import com.iptvwhiz.app.data.drm.drmInfo
+import com.iptvwhiz.app.data.drm.drmMissingDetail
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +44,7 @@ import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.util.UUID
 
 /** Why a channel can't play, for a plain-language message. */
 enum class PlaybackProblem { Offline, Blocked, NoConnection, Unsupported, Drm, NoVideo, Other }
@@ -129,6 +136,28 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     private var hasPlayed = false
     /** Set once the decoder puts a frame on screen; until then the picture is black. */
     private var hasRenderedFrame = false
+    /** ClearKey IDs the device asked for on this load, used only to explain a failure. */
+    private var requestedClearKeyIds: Set<String> = emptySet()
+
+    /**
+     * Wraps a DRM callback to remember which key IDs the device asked for. Comparing them with the
+     * playlist's IDs tells a stale provider key apart from a device problem.
+     */
+    private inner class KeyRequestRecorder(
+        private val delegate: MediaDrmCallback,
+    ) : MediaDrmCallback {
+        override fun executeKeyRequest(uuid: UUID, request: ExoMediaDrm.KeyRequest): ByteArray {
+            runCatching { String(request.data, Charsets.UTF_8) }
+                .getOrNull()
+                ?.let { requestedClearKeyIds = DrmKeyIds.fromKeyRequest(it) }
+            return delegate.executeKeyRequest(uuid, request)
+        }
+
+        override fun executeProvisionRequest(
+            uuid: UUID,
+            request: ExoMediaDrm.ProvisionRequest,
+        ): ByteArray = delegate.executeProvisionRequest(uuid, request)
+    }
 
     /**
      * Some streams report no error and simply never show a picture: the manifest is copy-protected
@@ -140,7 +169,18 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         val tracks = player.currentTracks.groups
         // Audio-only channels never render a frame; only complain when the stream has video.
         val hasVideo = tracks.isEmpty() || tracks.any { it.type == C.TRACK_TYPE_VIDEO }
-        if (hasVideo) {
+        if (!hasVideo) return@Runnable
+        val drm = channel?.drmInfo
+        if (drm != null && !drm.clearKeyMatches(requestedClearKeyIds)) {
+            // The device asked for a key ID the playlist doesn't have: that is the real reason.
+            _state.update {
+                it.copy(
+                    buffering = false,
+                    problem = PlaybackProblem.Drm,
+                    detail = drmFailureDetail(drm, requestedClearKeyIds),
+                )
+            }
+        } else {
             _state.update { it.copy(buffering = false, problem = PlaybackProblem.NoVideo) }
         }
     }
@@ -252,9 +292,10 @@ class LivePlayer(context: Context, http: OkHttpClient) {
     private fun load() {
         val channel = channel ?: return
         val drm = channel.drmInfo
+        requestedClearKeyIds = emptySet()
         if (drm != null && !drm.isValid) {
             // A DRM channel with no usable key would otherwise sit on a black screen.
-            _state.value = LivePlayerState(problem = PlaybackProblem.Drm, detail = drm.problemHint)
+            _state.value = LivePlayerState(problem = PlaybackProblem.Drm, detail = drmMissingDetail(drm))
             return
         }
         val dataSourceFactory = OkHttpDataSource.Factory(streamHttp)
@@ -298,7 +339,7 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         }
         val callback: MediaDrmCallback = when {
             drm.type == DrmType.CLEAR_KEY && drm.keyResponse != null ->
-                LocalMediaDrmCallback(drm.keyResponse.toByteArray(Charsets.UTF_8))
+                KeyRequestRecorder(LocalMediaDrmCallback(drm.keyResponse.toByteArray(Charsets.UTF_8)))
             drm.licenseUrl != null ->
                 HttpMediaDrmCallback(drm.licenseUrl, dataSourceFactory).apply {
                     drm.headers.forEach { (name, value) -> setKeyRequestProperty(name, value) }
@@ -327,20 +368,45 @@ class LivePlayer(context: Context, http: OkHttpClient) {
                 _state.update { it.copy(buffering = true) }
                 handler.postDelayed({ load() }, delay)
             }
-            else -> _state.value = LivePlayerState(problem = error.toProblem(), detail = error.detail())
+            else -> {
+                val problem = error.toProblem()
+                _state.value = LivePlayerState(
+                    problem = problem,
+                    detail = if (problem == PlaybackProblem.Drm) {
+                        drmFailureDetail(
+                            drm = channel?.drmInfo,
+                            requestedKeyIds = requestedClearKeyIds,
+                            httpStatus = error.httpStatus(),
+                            deviceUnsupported =
+                                error.errorCode == PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
+                            streamLacksScheme = error.causeChain().any { it is MissingSchemeDataException },
+                        )
+                    } else {
+                        error.detail()
+                    },
+                )
+            }
         }
     }
 
     private fun PlaybackException.isNetworkError(): Boolean = errorCode in NETWORK_ERRORS
 
+    /** The HTTP status behind an error, including a license server's refusal. */
     private fun PlaybackException.httpStatus(): Int? =
-        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+        causeChain()
+            .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+            .firstOrNull()
+            ?.responseCode
+
+    private fun Throwable.causeChain(): Sequence<Throwable> =
+        generateSequence(this) { it.cause }
 
     private fun PlaybackException.toProblem(): PlaybackProblem = when {
+        // A refused license is still a DRM problem, not a blocked channel.
+        errorCode in DRM_ERRORS -> PlaybackProblem.Drm
         httpStatus() == 404 || httpStatus() == 410 -> PlaybackProblem.Offline
         httpStatus() in 400..499 -> PlaybackProblem.Blocked
         errorCode in NETWORK_ERRORS -> PlaybackProblem.NoConnection
-        errorCode in DRM_ERRORS -> PlaybackProblem.Drm
         errorCode in FORMAT_ERRORS || errorCode in DECODER_ERRORS -> PlaybackProblem.Unsupported
         else -> PlaybackProblem.Other
     }

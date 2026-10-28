@@ -437,6 +437,14 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - **Tests:** 63 JVM tests (2 new `M3uParserTest` cases: DRM before `#EXTINF`, and no leak to later channels). Database unchanged at v5.
 - **Verified** on the phone emulator: DRM before `#EXTINF` stored `clearkey` and played `720×540 · 23 fps · 0.6 Mbps`; the same stream with its DRM lines removed showed the new card after 20 s; a normal channel was unaffected.
 
+### Notes (0.6.3, 2026-10-28)
+
+- **The DRM card now explains itself.** `data/drm/DrmDiagnostics.kt` builds one line naming the DRM system and the reason; `DrmInfo.clearKeyKeyIds` / `DrmKeyIds` read key **IDs** from the playlist's ClearKey JSON and from the device's key request (never the key itself).
+- **Key-ID comparison is the useful part:** Android's ClearKey module asks for a specific KID, so "playlist IDs ∩ requested IDs = ∅" means the provider re-keyed the stream and the playlist is stale. That is the classic "wrong provider key" case and it is now named.
+- **Wiring:** `LivePlayer` wraps the ClearKey callback in `KeyRequestRecorder` to remember the requested IDs, and the 20 s no-picture watchdog prefers the key-ID message when it has one. `httpStatus()` now walks the cause chain, so a refused license reports `HTTP <status>`. `toProblem()` checks DRM error codes first, so a license 403 stays a DRM problem and is not mislabelled Blocked.
+- **Tests:** 73 JVM tests (10 new in `DrmDiagnosticsTest`). Database unchanged at v5.
+- **Verified** on the phone emulator with `testdata/drm-diagnostics-test.m3u`: stale key ID, license HTTP 405, missing key, and a working control channel. See CHANGELOG for the exact strings.
+
 ---
 
 ## 19. Viewing options: quality overlay and blocked channels (0.6.0, 2026-10-26)
@@ -490,15 +498,6 @@ https://server/stream.mpd
 - `LivePlayer` builds a `DefaultDrmSessionManager` for the channel and installs it through `DefaultMediaSourceFactory.setDrmSessionManagerProvider`. The device's own DRM modules (`FrameworkMediaDrm.DEFAULT_PROVIDER`) do the decryption; the app only supplies keys/licenses.
 - `PlaybackProblem.Drm` (and Media3's 6000-range error codes) show "This channel is copy-protected…" with a short hint and **Try again**. The health recorder ignores DRM failures so a channel isn't marked Offline just because its key is wrong.
 - `PlaybackProblem.NoVideo` covers the silent case: encrypted but no error raised (e.g. the playlist has no key for that stream). `LivePlayer` starts a 20 s first-frame watchdog on every load, cancels it in `onRenderedFirstFrame`, and skips it for streams with no video track (audio-only). See the 0.6.2 notes above.
-
-**Limits, on purpose**
-
-- No key extraction, no license bypass, no key guessing: only data from the user's playlist.
-- Raw Widevine/PlayReady keys are rejected with a clear message. Those systems need a license server; a key alone cannot be used.
-- A device without the relevant DRM module (many cheap boxes and some emulators have no Widevine) can't play those channels; ClearKey works everywhere Android does.
-- The license request uses the channel's headers and user agent; it does not do per-provider device provisioning beyond what `FrameworkMediaDrm` does.
-
-**Legal note:** DRM support exists so the owner can watch channels their provider already authorises them to watch with the key details the provider supplied in the playlist. It is not a circumvention feature, and the app ships no keys.
 
 **Test assets (public, for development only):** `testdata/drm-test.m3u` uses Google's Shaka demo library:
 - ClearKey key and ClearKey license server: `angel-one-clearkey` with key `feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff` and license `https://cwip-shaka-proxy.appspot.com/clearkey?_u3wDe7erb7v8Lqt8A3QDQ=ABEiM0RVZneImaq7zN3u_w`.

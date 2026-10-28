@@ -65,7 +65,7 @@ class DrmInfoTest {
         )!!
         assertEquals(DrmType.WIDEVINE, drm.type)
         assertFalse(drm.isValid)
-        assertEquals("widevine needs a license link", drm.problemHint)
+        assertEquals("widevine · the playlist has no license link", drmMissingDetail(drm))
     }
 
     @Test
@@ -73,7 +73,7 @@ class DrmInfoTest {
         val drm = DrmInfoParser.fromKodiProperties("clearkey", "not-a-key")!!
         assertEquals(DrmType.CLEAR_KEY, drm.type)
         assertFalse(drm.isValid)
-        assertEquals("no ClearKey key in playlist", drm.problemHint)
+        assertEquals("clearkey · no key in the playlist", drmMissingDetail(drm))
     }
 
     @Test

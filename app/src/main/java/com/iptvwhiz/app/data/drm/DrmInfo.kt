@@ -40,14 +40,38 @@ data class DrmInfo(
     val isValid: Boolean
         get() = (type == DrmType.CLEAR_KEY && !keyResponse.isNullOrBlank()) || !licenseUrl.isNullOrBlank()
 
-    /** Small print for the error card, never the key itself. */
-    val problemHint: String
-        get() = when {
-            licenseUrl != null -> "${type.storage} license failed"
-            keyResponse == null && type == DrmType.CLEAR_KEY -> "no ClearKey key in playlist"
-            keyResponse == null -> "${type.storage} needs a license link"
-            else -> "${type.storage} key rejected"
-        }
+    /**
+     * Key IDs named in the ClearKey response, base64url without padding. Used only to explain a
+     * failure ("the playlist key doesn't match this stream"); a key itself is never shown.
+     */
+    val clearKeyKeyIds: Set<String>
+        get() = keyResponse?.let(DrmKeyIds::fromKeyResponse) ?: emptySet()
+}
+
+/**
+ * Key IDs in ClearKey JSON, read without decoding any key material. Android's ClearKey module asks
+ * for a key by ID, so comparing the playlist's IDs with the device's request tells "the provider
+ * changed the key, refresh the playlist" apart from "this device rejected the key".
+ */
+object DrmKeyIds {
+    private val RESPONSE_KID = Regex("\"kid\"\\s*:\\s*\"([^\"]+)\"")
+    private val REQUEST_KIDS = Regex("\"kids\"\\s*:\\s*\\[(.*?)]", RegexOption.DOT_MATCHES_ALL)
+    private val QUOTED = Regex("\"([^\"]+)\"")
+
+    fun fromKeyResponse(json: String): Set<String> =
+        RESPONSE_KID.findAll(json)
+            .map { normalize(it.groupValues[1]) }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+    fun fromKeyRequest(json: String): Set<String> =
+        REQUEST_KIDS.find(json)?.groupValues?.get(1)
+            ?.let { array -> QUOTED.findAll(array).map { normalize(it.groupValues[1]) }.toSet() }
+            ?: emptySet()
+
+    /** base64url without padding, so a playlist ID and a device ID compare equal. */
+    private fun normalize(id: String): String =
+        id.trim().trimEnd('=').replace('+', '-').replace('/', '_')
 }
 
 /** Reads `#KODIPROP` pairs from an M3U playlist, the format Kodi uses. */

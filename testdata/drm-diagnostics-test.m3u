@@ -1,0 +1,26 @@
+#EXTM3U
+# DRM diagnostics playlist: each channel should show a *specific* reason, not a vague one.
+# Channel 1 is the real TV3 SD stream with the wrong key ID (the provider re-keyed it):
+#   expect "clearkey · the playlist key doesn't match this stream's key ID".
+# Channel 2 asks Widevine for a license at a URL that answers 404:
+#   expect "widevine · the license server said no (HTTP 404)".
+# Channel 3 has DRM lines but no usable key:
+#   expect "clearkey · no key in the playlist".
+# Channel 4 is the control: it plays.
+#EXTINF:-1 tvg-id="diag.stale.key" group-title="DRM diagnostics",1 TV3 SD (playlist key ID is stale)
+#KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+#KODIPROP:inputstream.adaptive.license_key={ "keys":[ { "kty":"oct", "k":"X842T7xEmYVll7GalvRGSA", "kid":"AAAAAAAAAAAAAAAAAAAAAA" } ], "type":"temporary" }
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Linux; Android 11; Philips Google TV TA7 Build/RTM5.220609.199; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/138.0.7204.179 Mobile Safari/537.36
+https://linearjitp-playback.astro.com.my/dash-wv/linear/809/default_primary.mpd
+#EXTINF:-1 tvg-id="diag.license.404" group-title="DRM diagnostics",2 Angel One (license server 404)
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#KODIPROP:inputstream.adaptive.license_key=https://example.com/no-license-here
+https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd
+#EXTINF:-1 tvg-id="diag.no.key" group-title="DRM diagnostics",3 Broken ClearKey (no usable key)
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=not-a-key
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd
+#EXTINF:-1 tvg-id="diag.control" group-title="DRM diagnostics",4 Control (ClearKey key works)
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd

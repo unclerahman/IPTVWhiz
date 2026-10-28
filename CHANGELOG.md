@@ -3,6 +3,26 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.3 (2026-10-28)
+
+**Improved**
+- **The copy-protection card now says *why*.** Instead of a vague "its key didn't work", the small print names the DRM system the playlist asked for and the actual reason:
+  - `clearkey · the playlist key doesn't match this stream's key ID` — the provider changed the key; refreshing the playlist usually fixes it.
+  - `clearkey · no key in the playlist` — the channel has DRM lines but no usable key.
+  - `widevine · the license server said no (HTTP 403)` — the license server answered and refused; the status is shown.
+  - `widevine · this device has no widevine module` — the stream needs a DRM system this device does not have.
+  - `playready · the stream doesn't offer playready` — the playlist names a system the stream doesn't use.
+- **The "isn't sending a picture" watchdog now gives the better reason when it has one.** If a protected channel never shows a picture because the device asked for a key ID the playlist doesn't contain, you get the key-ID message above, not the generic one.
+- Nothing is extracted or guessed: the card only compares key *IDs* (never keys) and reports the server's own answer.
+
+**Tests:** 73 JVM tests (10 new for the diagnostics text and key-ID reading).
+
+**Verified on the phone emulator (Android 15, 2026-10-28)** with `testdata/drm-diagnostics-test.m3u`:
+- Real TV3 SD stream with a deliberately stale key ID: `clearkey · the playlist key doesn't match this stream's key ID`.
+- Widevine stream pointed at a license URL that refuses: `widevine · the license server said no (HTTP 405)`.
+- DRM lines with a broken key: `clearkey · no key in the playlist`.
+- Control channel with a working ClearKey key: played, `768×576 · 8 fps · 1.8 Mbps`.
+
 ## 0.6.2 (2026-10-27)
 
 **Fixed**
