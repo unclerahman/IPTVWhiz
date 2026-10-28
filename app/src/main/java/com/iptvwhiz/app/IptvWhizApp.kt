@@ -25,6 +25,11 @@ class IptvWhizApp : Application(), ImageLoaderFactory {
                 }
             }
         }
+        // Channels stored by an older parser can be missing data (for example a DRM key), so
+        // re-import the playlists once after such an update instead of waiting for a manual refresh.
+        container.appScope.launch {
+            runCatching { container.playlists.refreshIfParserChanged() }
+        }
     }
 
     /** Channel logos: shared HTTP client, capped caches so cheap TV boxes stay responsive. */

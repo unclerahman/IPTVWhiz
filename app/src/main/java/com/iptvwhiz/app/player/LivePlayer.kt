@@ -171,17 +171,29 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         val hasVideo = tracks.isEmpty() || tracks.any { it.type == C.TRACK_TYPE_VIDEO }
         if (!hasVideo) return@Runnable
         val drm = channel?.drmInfo
-        if (drm != null && !drm.clearKeyMatches(requestedClearKeyIds)) {
+        val protected = tracks.any { group ->
+            (0 until group.length).any { group.getTrackFormat(it).drmInitData != null }
+        }
+        when {
+            // The stream is encrypted but the playlist says nothing about a key. That is usually a
+            // channel imported by an older version of the app; the player asks the playlist to be
+            // refreshed and replays it, so name the real reason instead of a vague black screen.
+            drm == null && protected -> _state.update {
+                it.copy(
+                    buffering = false,
+                    problem = PlaybackProblem.Drm,
+                    detail = drmFailureDetail(drm = null),
+                )
+            }
             // The device asked for a key ID the playlist doesn't have: that is the real reason.
-            _state.update {
+            drm != null && !drm.clearKeyMatches(requestedClearKeyIds) -> _state.update {
                 it.copy(
                     buffering = false,
                     problem = PlaybackProblem.Drm,
                     detail = drmFailureDetail(drm, requestedClearKeyIds),
                 )
             }
-        } else {
-            _state.update { it.copy(buffering = false, problem = PlaybackProblem.NoVideo) }
+            else -> _state.update { it.copy(buffering = false, problem = PlaybackProblem.NoVideo) }
         }
     }
 

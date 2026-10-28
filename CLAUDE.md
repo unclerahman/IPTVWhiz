@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (73 at 0.6.4)
+./gradlew testReleaseUnitTest      # JVM tests (76 at 0.6.5)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -55,12 +55,12 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
   - Search: `ChannelSearch` (pure, tested); `Channel.effectiveCountry`.
   - EPG: `data/epg`. `XmltvParser` (streaming), `EpgRepository` (max 10 links, `selectLinks`), daily `EpgWork`.
   - Backup: `data/backup`. JSON file, playlists matched by fingerprint, newest edit wins, format version 1 with optional fields.
-  - DRM: `data/drm/DrmInfo.kt` (pure, tested) parses Kodi `#KODIPROP` `license_type`/`license_key`; `M3uParser` attaches a `DrmInfo` to the next stream link, whether the block sits above or below `#EXTINF` (Kodi semantics; 0.6.2 fixed the above-`#EXTINF` case). Four nullable `drm*` columns on `channels`, exposed by `channel_view`.
+  - DRM: `data/drm/DrmInfo.kt` (pure, tested) parses Kodi `#KODIPROP` `license_type`/`license_key`; `M3uParser` attaches a `DrmInfo` to the next stream link, whether the block sits above or below `#EXTINF` (Kodi semantics; 0.6.2 fixed the above-`#EXTINF` case). Four nullable `drm*` columns on `channels`, exposed by `channel_view`. `PlaylistRepository.PARSER_VERSION` + `AppPrefs.parserVersion` trigger a one-time re-import after a parser change (0.6.5), so old rows cannot stay without their DRM data.
   - Parsers: `M3uParser` (only accepts `scheme://` lines as links) and `XtreamClient`.
 - **Player (`player/LivePlayer.kt`):** Media3 1.5.1 ExoPlayer with OkHttp, HLS and DASH.
   - Per-channel user agent and referrer, short timeouts, retries with backoff, HLS fallback for links without `.m3u8`.
   - Errors are mapped to `PlaybackProblem`.
-  - DRM: a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys from the playlist use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` with the playlist's headers; provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`. `PlaybackProblem.Drm` covers the missing-key case and Media3's 6000-range errors; DRM failures are not recorded as Offline. `PlaybackProblem.NoVideo` is the silent case: a 20 s first-frame watchdog (`noVideoWatchdog`), cancelled by `onRenderedFirstFrame`, skipped for streams with no video track. The app never extracts or guesses keys (see the DrmInfo doc comment).
+  - DRM: a custom `DrmSessionManagerProvider` on `DefaultMediaSourceFactory`. ClearKey keys from the playlist use `LocalMediaDrmCallback`; license links use `HttpMediaDrmCallback` with the playlist's headers; provider is `FrameworkMediaDrm.DEFAULT_PROVIDER`. `PlaybackProblem.Drm` covers the missing-key case and Media3's 6000-range errors; DRM failures are not recorded as Offline. `PlaybackProblem.NoVideo` is the silent case: a 20 s first-frame watchdog (`noVideoWatchdog`), cancelled by `onRenderedFirstFrame`, skipped for streams with no video track. Since 0.6.5 the watchdog also checks the tracks' `drmInitData`: an encrypted stream with no DRM data in the playlist is reported as `Drm` with `drmFailureDetail(null)`, and `PlayerViewModel.recoverMissingKey()` refreshes the playlist and replays the channel. The app never extracts or guesses keys (see the DrmInfo doc comment).
   - Video goes through `ui/common/PlayerSurface.kt`: SurfaceView on TV, TextureView on phone (black-screen fix for Xiaomi).
   - `StreamStats` + `setStatsEnabled()` feed the optional quality chip (`ui/common/QualityBadge.kt`): resolution/FPS from decoder counters, Mbps from a `TransferListener`, sampled once a second only while switched on.
 - **Viewing options:** `AppPrefs.showQuality` / `AppPrefs.hideBlocked`, edited in Settings → Viewing options (`ui/tv/TvViewingScreen.kt`, `ui/mobile/MobileViewingScreen.kt`, `ViewingViewModel`). Hide blocked is applied in `LiveViewModel`, `SearchViewModel` and `PlayerViewModel` (zapping) by `OrganizedPlaylist.without(blocked)`; watchlists and Manage keep blocked channels.
@@ -82,7 +82,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.6.4)
+## Current status (0.6.5)
 
 | Milestone | Status |
 |---|---|
@@ -93,6 +93,8 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | M4 EPG basics | ✅ Done |
 | Backup | ✅ Done |
 | M5 polish | ◐ Search, watchlists, health, the viewing options (quality chip, hide blocked, phone full screen) and DRM playback are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+
+**0.6.5 (2026-10-29):** fixes the owner's TV3 SD. Their stored channel had no DRM columns (imported before 0.6.2 and never refreshed), so a protected stream reached the no-picture card. Two recovery paths: (1) `AppPrefs.parserVersion` + `PlaylistRepository.PARSER_VERSION` (2) + `refreshIfParserChanged()` called from `IptvWhizApp.onCreate` re-imports every playlist once after a parser change; (2) `PlayerViewModel.recoverMissingKey()` watches for `PlaybackProblem.Drm` on a channel whose `drmInfo` is null, refreshes that playlist once and replays the channel from the rebuilt `loadChannels()` list. `LivePlayer`'s 20 s watchdog now checks `currentTracks` for `drmInitData`, so "encrypted but the playlist has no key" is `Drm` with `drmFailureDetail(null)`, not `NoVideo`; the NoVideo copy no longer guesses at copy protection. User edits survive (overlay rows by `stableKey`). Database stays v5; parser version is a `SharedPreferences` int. 76 JVM tests. Verified on the phone emulator by clearing the DRM columns (both the update path and the play-time path healed and TV3 played), plus the diagnostics playlist and a TV smoke test. See CHANGELOG and PLAN §20 notes.
 
 **0.6.4 (2026-10-28):** phone UI polish only — no behaviour, settings or database changes. New shared design tokens in `ui/theme/Brand.kt` (midnight indigo `#1E1B4B`/`#4338CA`, background `#0F0F23`, live green `#22C55E`), used by both `MobileTheme.kt` and `TvTheme.kt` so the two layouts stay in step; `colors.xml` matches. Phones are now **dark-only** (`IptvWhizMobileTheme(darkTheme = true)`, `SystemBarStyle.dark`), like TV. Live TV gained a provider header, count chips with All channels first, loading/empty states, a number badge, favourite heart and `HealthBadge` (Offline/Blocked only); Settings is grouped into Setup / Playback / App & data with icon tiles, chevrons and Soon pills, and About shows the version; the player's error card is compact for the portrait video area, with "Tuning in…", a LIVE pill, `#number · group` and a current-row accent bar. Inter is not bundled (system font with tuned tracking/weights instead). 73 JVM tests, unchanged. See CHANGELOG and PLAN notes for 0.6.4.
 
@@ -111,7 +113,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
    - The new quality chip is a first diagnostic: if it shows numbers while the screen is black, the decoder is running and the problem is the surface.
    - Consider adding the quality chip to the "Playback info" idea in the quick menu (state, codec, decoder, last error) to diagnose devices remotely.
 2. **Ask the owner about 0.6.4:** whether the dark-only phone UI and the grouped Settings feel right, and whether a light theme is wanted (Appearance is still "Soon"; the light colour scheme is already written in `MobileTheme.kt`).
-3. **Ask the owner about 0.6.3:** whether the DRM card now names a reason they can act on (stale key ID → refresh the playlist), and whether TV3 SD plays after a refresh. The owner's phone may still be on 0.6.0/0.6.1, so confirm they installed 0.6.3 first.
+3. **Ask the owner about 0.6.5:** whether TV3 SD plays now without a manual playlist refresh, and whether the copy-protection card still appears on any channel they expect to work. Their old stored channel is re-imported automatically, so no action should be needed. If it still fails, ask for the small line under the message (it names the DRM system and reason).
 4. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
 5. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
 6. **TV player Back:** on the error card, Back sometimes needs an extra press.

@@ -72,6 +72,31 @@ class PlaylistRepository(
         return id
     }
 
+    /**
+     * Re-imports every playlist once after an update that changed how channels are parsed, so
+     * channels imported by an older version pick up data they were missing (for example the DRM
+     * key of a channel whose playlist writes `#KODIPROP` before `#EXTINF`). User edits live in the
+     * overlay table, so they survive the refresh.
+     *
+     * A playlist that cannot be downloaded is tried again on the next start: the version is only
+     * recorded when every playlist refreshed. Returns true when a refresh was attempted.
+     */
+    suspend fun refreshIfParserChanged(): Boolean {
+        if (!needsReimport(prefs.parserVersion)) return false
+        val playlists = db.playlists().getAll()
+        if (playlists.isEmpty()) {
+            prefs.parserVersion = PARSER_VERSION
+            return false
+        }
+        var allWorked = true
+        for (playlist in playlists) {
+            val worked = runCatching { refresh(playlist.id) }.isSuccess
+            if (!worked) allWorked = false
+        }
+        if (allWorked) prefs.parserVersion = PARSER_VERSION
+        return true
+    }
+
     /** Re-downloads a playlist and swaps its channels in one transaction. Throws [ImportException]. */
     suspend fun refresh(playlistId: Long, onProgress: (Int) -> Unit = {}) {
         val playlist = db.playlists().get(playlistId) ?: return
@@ -228,7 +253,16 @@ class PlaylistRepository(
         }
     }
 
-    private companion object {
-        const val BATCH = 500
+    companion object {
+        private const val BATCH = 500
+
+        /**
+         * Bump when a parsing change leaves stored channels without data they should have.
+         * 2 (0.6.5): DRM lines written before their channel line were dropped.
+         */
+        const val PARSER_VERSION = 2
+
+        /** True when channels were stored by a parser older than [PARSER_VERSION]. */
+        fun needsReimport(storedVersion: Int): Boolean = storedVersion < PARSER_VERSION
     }
 }

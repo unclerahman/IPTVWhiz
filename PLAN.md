@@ -455,6 +455,16 @@ Each playlist is identified by a **playlist fingerprint**, a hash of the server 
 - **Not touched:** navigation, ViewModels, database (v5), player logic, DRM handling, TV layout.
 - **Tests:** 73 JVM tests, unchanged.
 
+### Notes (0.6.5, 2026-10-29)
+
+- **Stale playlists now heal themselves.** The owner's TV3 SD opened to the no-picture card because the stored channel had no DRM columns: it was imported before 0.6.2 taught `M3uParser` to keep a `#KODIPROP` block written above `#EXTINF`, and the playlist had never been refreshed. Simulated exactly (cleared the four DRM columns) and confirmed.
+- **Two recovery paths, because one is not enough:**
+  - *After an update:* `AppPrefs.parserVersion` records which parser produced the stored channels (`PlaylistRepository.PARSER_VERSION`, currently 2). `IptvWhizApp.onCreate` launches `PlaylistRepository.refreshIfParserChanged()`, which re-imports every playlist once. The version is only recorded when every playlist refreshed, so an offline start tries again next time. User edits survive because they are overlay rows keyed by `stableKey`.
+  - *While playing:* `PlayerViewModel` watches `LivePlayer.state`. When a channel reports `PlaybackProblem.Drm` and its stored `Channel.drmInfo` is null, it refreshes that playlist once, rebuilds its channel list with the same logic as `init` (now `loadChannels()`), and replays the refreshed channel at the same stable key. A failed refresh is retried on the next attempt; a playlist that genuinely has no key leaves the card up.
+- **The watchdog can now tell "protected, no key" from "nothing arriving".** `LivePlayer`'s 20 s no-picture watchdog inspects `player.currentTracks` for `drmInitData`. If the stream is encrypted and the playlist says nothing, it reports `Drm` with `drmFailureDetail(null)` instead of `NoVideo`, which is also what triggers the play-time refresh. The old copy guessed at copy protection in the NoVideo text; the two cases are now separate.
+- **Tests:** 76 JVM tests (3 new in `PlaylistParserVersionTest`). Database stays v5; the parser version is a `SharedPreferences` int.
+- **Verified** on the phone emulator: stale DB + update self-healed on start and TV3 played; stale DB + current parser version healed on play and TV3 played; the no-key channel showed the copy-protection reason; the diagnostics playlist still produced its stale-key, HTTP-status and missing-key lines, and its control channel played. TV UI smoke test on the TV emulator.
+
 ---
 
 ## 19. Viewing options: quality overlay and blocked channels (0.6.0, 2026-10-26)
@@ -507,7 +517,7 @@ https://server/stream.mpd
 - The data is stored on the channel (`drmType`, `drmKey`, `drmLicenseUrl`, `drmHeaders`) so it survives refresh and works offline; `channel_view` exposes it as `Channel`. Database v5.
 - `LivePlayer` builds a `DefaultDrmSessionManager` for the channel and installs it through `DefaultMediaSourceFactory.setDrmSessionManagerProvider`. The device's own DRM modules (`FrameworkMediaDrm.DEFAULT_PROVIDER`) do the decryption; the app only supplies keys/licenses.
 - `PlaybackProblem.Drm` (and Media3's 6000-range error codes) show "This channel is copy-protected…" with a short hint and **Try again**. The health recorder ignores DRM failures so a channel isn't marked Offline just because its key is wrong.
-- `PlaybackProblem.NoVideo` covers the silent case: encrypted but no error raised (e.g. the playlist has no key for that stream). `LivePlayer` starts a 20 s first-frame watchdog on every load, cancels it in `onRenderedFirstFrame`, and skips it for streams with no video track (audio-only). See the 0.6.2 notes above.
+- `PlaybackProblem.NoVideo` covers the silent case: encrypted but no error raised (e.g. the playlist has no key for that stream). `LivePlayer` starts a 20 s first-frame watchdog on every load, cancels it in `onRenderedFirstFrame`, and skips it for streams with no video track (audio-only). Since 0.6.5 the watchdog checks the tracks' `drmInitData`: if the stream is encrypted and the playlist has no DRM data, it reports `PlaybackProblem.Drm` (with "the stream is copy-protected, and the playlist has no key for it") and `PlayerViewModel` refreshes the playlist and replays the channel. See the 0.6.2 and 0.6.5 notes above.
 
 **Test assets (public, for development only):** `testdata/drm-test.m3u` uses Google's Shaka demo library:
 - ClearKey key and ClearKey license server: `angel-one-clearkey` with key `feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff` and license `https://cwip-shaka-proxy.appspot.com/clearkey?_u3wDe7erb7v8Lqt8A3QDQ=ABEiM0RVZneImaq7zN3u_w`.

@@ -43,11 +43,22 @@ class AppPrefs(context: Context) {
         _hideBlocked.value = on
     }
 
+    /**
+     * The parser version that produced the stored channels. 0 means "imported by a version that
+     * did not record one", which is treated as outdated.
+     */
+    var parserVersion: Int
+        get() = prefs.getInt(KEY_PARSER_VERSION, 0)
+        set(value) {
+            prefs.edit().putInt(KEY_PARSER_VERSION, value).apply()
+        }
+
     companion object {
         const val NONE = -1L
         private const val KEY_SHOW_QUALITY = "show_quality"
         private const val KEY_HIDE_BLOCKED = "hide_blocked"
         private const val KEY_ACTIVE_PLAYLIST = "active_playlist"
         private const val KEY_LAST_CHANNEL = "last_channel_"
+        private const val KEY_PARSER_VERSION = "parser_version"
     }
 }

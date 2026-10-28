@@ -9,6 +9,7 @@ import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.Watchlist
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
+import com.iptvwhiz.app.data.drm.drmInfo
 import com.iptvwhiz.app.data.epg.NowNext
 import com.iptvwhiz.app.player.LivePlayer
 import com.iptvwhiz.app.player.PlaybackProblem
@@ -46,6 +47,9 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
 
+    /** Channels whose playlist has already been refreshed to look for a missing DRM key. */
+    private val recoveryTried = mutableSetOf<Pair<Long, String>>()
+
     /** The list's name: a renamed group or a watchlist; null for "All channels", Favorites and search. */
     private val _groupName = MutableStateFlow<String?>(null)
     val groupName: StateFlow<String?> = _groupName.asStateFlow()
@@ -81,26 +85,56 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
         // The player only measures while the overlay is on.
         viewModelScope.launch { prefs.showQuality.collect { livePlayer.setStatsEnabled(it) } }
         viewModelScope.launch {
-            val list = when (source) {
-                Routes.SOURCE_WATCHLIST -> {
-                    val id = OrganizedPlaylist.watchlistId(group)
-                    val watchlist = container.watchlists.current().firstOrNull { it.id == id }
-                    _groupName.value = watchlist?.takeUnless { it.isFavorites }?.name
-                    watchlist?.available.orEmpty()
-                }
-                Routes.SOURCE_QUEUE -> container.playQueue
-                else -> {
-                    val organized = container.overlay.organizedNow(playlistId)
-                    _groupName.value = organized.groups.firstOrNull { it.key == group }?.displayName
-                    // Zapping skips blocked channels when that option is on, like the list it came from.
-                    (if (prefs.hideBlocked.value) organized.without(container.health.blockedNow()) else organized).browse(group)
-                }
-            }
+            val list = loadChannels()
             _channels.value = list
             val start = list.indexOfFirst { it.stableKey == startKey && (playlistId < 0 || it.playlistId == playlistId) }
             playAt(start.coerceAtLeast(0))
         }
         recordHealthFromPlayback()
+    }
+
+    /** The list this player zaps through. Rebuilt after a playlist refresh, so keys stay current. */
+    private suspend fun loadChannels(): List<Channel> = when (source) {
+        Routes.SOURCE_WATCHLIST -> {
+            val id = OrganizedPlaylist.watchlistId(group)
+            val watchlist = container.watchlists.current().firstOrNull { it.id == id }
+            _groupName.value = watchlist?.takeUnless { it.isFavorites }?.name
+            watchlist?.available.orEmpty()
+        }
+        Routes.SOURCE_QUEUE -> container.playQueue
+        else -> {
+            val organized = container.overlay.organizedNow(playlistId)
+            _groupName.value = organized.groups.firstOrNull { it.key == group }?.displayName
+            // Zapping skips blocked channels when that option is on, like the list it came from.
+            (if (prefs.hideBlocked.value) organized.without(container.health.blockedNow()) else organized).browse(group)
+        }
+    }
+
+    /**
+     * A copy-protected channel whose stored playlist has no DRM data at all was probably imported
+     * by an older version of the app (before the parser fix in 0.6.2). Refresh that playlist once
+     * and replay the channel with the key it now has. A failed refresh is retried on the next
+     * attempt; a playlist that really has no key leaves the explanation on screen.
+     */
+    private fun recoverMissingKey(channel: Channel, problem: PlaybackProblem?) {
+        if (problem != PlaybackProblem.Drm || channel.drmInfo != null || channel.playlistId < 0) return
+        val ref = channel.playlistId to channel.stableKey
+        if (!recoveryTried.add(ref)) return
+        viewModelScope.launch {
+            val refreshed = runCatching { container.playlists.refresh(channel.playlistId) }.isSuccess
+            if (!refreshed) {
+                recoveryTried.remove(ref)
+                return@launch
+            }
+            val list = loadChannels()
+            val i = list.indexOfFirst { it.playlistId == channel.playlistId && it.stableKey == channel.stableKey }
+            if (i < 0) return@launch
+            _channels.value = list
+            val updated = list[i]
+            if (updated.drmInfo == null) return@launch
+            _index.value = i
+            livePlayer.play(updated)
+        }
     }
 
     /** Playing a channel tells us whether it works, for free (PLAN.md §18). */
@@ -109,6 +143,7 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
             var lastRecorded: Pair<ChannelRef, HealthStatus>? = null
             combine(current, livePlayer.state) { channel, state -> channel to state }.collect { (channel, state) ->
                 channel ?: return@collect
+                recoverMissingKey(channel, state.problem)
                 val status = when (state.problem) {
                     PlaybackProblem.Blocked -> HealthStatus.Blocked
                     PlaybackProblem.Offline, PlaybackProblem.Unsupported -> HealthStatus.Offline

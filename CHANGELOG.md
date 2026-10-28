@@ -3,6 +3,25 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.5 (2026-10-29)
+
+**Fixed**
+- **A playlist imported by an older version is re-imported once, automatically.** Some channels were stored without their DRM details (playlists that write the `#KODIPROP` lines *before* the channel line were only handled from 0.6.2), so a protected channel could open to a black screen even though the playlist had its key. After updating, the app re-downloads each playlist once in the background; renames, hidden channels, groups and order are kept because they live separately from the provider's rows. A playlist that cannot be downloaded is tried again on the next start.
+- **A protected channel with no key in the playlist now heals itself while you watch.** If a channel is encrypted but the stored playlist has no DRM data for it, the player refreshes that playlist once and replays the channel with the key it finds. This also covers the case where the app was already open when the update was installed.
+- **The "isn't sending a picture" card no longer guesses.** When the stream is encrypted but the playlist says nothing about a key, the copy-protection card now names that reason ("the stream is copy-protected, and the playlist has no key for it") instead of suggesting the channel may be down. The card's wording was shortened; it no longer asks people to check a key by hand, because the app now refreshes the playlist for them.
+
+**Notes**
+- Database stays at v5: the parser version is a single value in the app's preferences, not a per-playlist column.
+- Nothing about keys changed: the app still only uses DRM data from the user's own playlist and never extracts or guesses a key.
+
+**Tests:** 76 JVM tests (3 new for the upgrade decision).
+
+**Verified on the phone emulator (Android 15, 2026-10-28):**
+- Simulated the owner's phone by clearing the DRM columns of a stored TV3 SD channel and updating from 0.6.4: the app re-imported the playlist on start and TV3 SD played (ClearKey session opened, LIVE, picture).
+- Repeated with the parser version already current, so no start-up refresh: opening the stale channel refreshed the playlist while playing and TV3 SD played.
+- The no-key channel now shows the copy-protection reason above instead of the no-picture card.
+- `testdata/drm-diagnostics-test.m3u` still reports `clearkey · the playlist key doesn't match this stream's key ID`, the license server's HTTP status, and `clearkey · no key in the playlist`; its control channel played.
+
 ## 0.6.4 (2026-10-28)
 
 **Improved**
