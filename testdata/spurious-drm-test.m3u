@@ -1,0 +1,38 @@
+#EXTM3U
+# Spurious / incomplete DRM lines on clear streams. 0.6.5 refused to even load these,
+# showing a copy-protection card instead of the picture.
+# Every channel here is a plain, unencrypted HLS stream (Mux test asset).
+# Expect: all of them play, with no copy-protection card.
+#EXTINF:-1 tvg-id="spurious.widevine.no.key" group-title="Spurious DRM",1 Clear HLS + widevine type, no key
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="spurious.clearkey.garbage" group-title="Spurious DRM",2 Clear HLS + clearkey, key is not a key
+#KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+#KODIPROP:inputstream.adaptive.license_key=not-a-key
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="spurious.widevine.token" group-title="Spurious DRM",3 Clear HLS + widevine, key is a token
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#KODIPROP:inputstream.adaptive.license_key=some-provider-token
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="spurious.clearkey.no.kid" group-title="Spurious DRM",4 Clear HLS + clearkey JSON without a key ID
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key={ "keys":[ { "kty":"oct", "k":"X842T7xEmYVll7GalvRGSA" } ], "type":"temporary" }
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+# DRM block placed before #EXTINF, the shape some providers use (fixed in 0.6.2):
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#EXTINF:-1 tvg-id="spurious.block.first" group-title="Spurious DRM",5 Clear HLS + block before EXTINF, no key
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="spurious.control" group-title="Spurious DRM",6 Control: clear HLS, no DRM lines
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+# Channel 7 really is encrypted and the playlist really has no usable key:
+# expect the copy-protection card, "clearkey · no key in the playlist".
+#EXTINF:-1 tvg-id="spurious.real.no.key" group-title="Spurious DRM",7 Encrypted ClearKey, no usable key
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=not-a-key
+https://storage.googleapis.com/shaka-demo-assets/angel-one-clearkey/dash.mpd
+# Channel 8 is a clear stream that carries a *complete* ClearKey line. The player builds a DRM
+# session but the stream has no encrypted tracks, so it must still play.
+#EXTINF:-1 tvg-id="spurious.valid.key" group-title="Spurious DRM",8 Clear HLS + valid clearkey key
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=feedf00deedeadbeeff0baadf00dd00d:00112233445566778899aabbccddeeff
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8

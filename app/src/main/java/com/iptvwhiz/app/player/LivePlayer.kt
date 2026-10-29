@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -36,7 +37,6 @@ import com.iptvwhiz.app.data.drm.DrmType
 import com.iptvwhiz.app.data.drm.clearKeyMatches
 import com.iptvwhiz.app.data.drm.drmFailureDetail
 import com.iptvwhiz.app.data.drm.drmInfo
-import com.iptvwhiz.app.data.drm.drmMissingDetail
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -171,18 +171,25 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         val hasVideo = tracks.isEmpty() || tracks.any { it.type == C.TRACK_TYPE_VIDEO }
         if (!hasVideo) return@Runnable
         val drm = channel?.drmInfo
-        val protected = tracks.any { group ->
-            (0 until group.length).any { group.getTrackFormat(it).drmInitData != null }
-        }
+        val protected = tracks.isProtected()
         when {
             // The stream is encrypted but the playlist says nothing about a key. That is usually a
             // channel imported by an older version of the app; the player asks the playlist to be
             // refreshed and replays it, so name the real reason instead of a vague black screen.
-            drm == null && protected -> _state.update {
+            protected && drm == null -> _state.update {
                 it.copy(
                     buffering = false,
                     problem = PlaybackProblem.Drm,
                     detail = drmFailureDetail(drm = null),
+                )
+            }
+            // The playlist named DRM but the key/license line is incomplete (a common copy-paste
+            // mistake in IPTV lists). Only mention it because this stream really is encrypted.
+            protected && drm != null && !drm.isValid -> _state.update {
+                it.copy(
+                    buffering = false,
+                    problem = PlaybackProblem.Drm,
+                    detail = drmFailureDetail(drm),
                 )
             }
             // The device asked for a key ID the playlist doesn't have: that is the real reason.
@@ -213,6 +220,26 @@ class LivePlayer(context: Context, http: OkHttpClient) {
                 hasRenderedFrame = true
                 handler.removeCallbacks(noVideoWatchdog)
                 _state.update { if (it.problem == PlaybackProblem.NoVideo) it.copy(problem = null) else it }
+            }
+
+            /**
+             * A stream that is encrypted while the playlist has no usable key can never play, so say
+             * so as soon as the tracks are known instead of leaving a black screen until the
+             * watchdog fires. Clear streams with a spurious DRM line have no `drmInitData` and are
+             * left alone.
+             */
+            override fun onTracksChanged(tracks: Tracks) {
+                val drm = channel?.drmInfo
+                if (hasRenderedFrame || stopped || _state.value.problem != null) return
+                if (drm == null || drm.isValid || !tracks.groups.isProtected()) return
+                handler.removeCallbacks(noVideoWatchdog)
+                _state.update {
+                    it.copy(
+                        buffering = false,
+                        problem = PlaybackProblem.Drm,
+                        detail = drmFailureDetail(drm),
+                    )
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) = handleError(error)
@@ -305,11 +332,9 @@ class LivePlayer(context: Context, http: OkHttpClient) {
         val channel = channel ?: return
         val drm = channel.drmInfo
         requestedClearKeyIds = emptySet()
-        if (drm != null && !drm.isValid) {
-            // A DRM channel with no usable key would otherwise sit on a black screen.
-            _state.value = LivePlayerState(problem = PlaybackProblem.Drm, detail = drmMissingDetail(drm))
-            return
-        }
+        // No early stop when the DRM line is incomplete: many playlists paste a #KODIPROP block onto
+        // channels that are actually clear, and those must still play. If the stream turns out to be
+        // encrypted, the watchdog or the error handler explains the missing key instead.
         val dataSourceFactory = OkHttpDataSource.Factory(streamHttp)
             .setTransferListener(transferListener)
             .setUserAgent(channel.userAgent ?: AppContainer.USER_AGENT)
@@ -362,6 +387,10 @@ class LivePlayer(context: Context, http: OkHttpClient) {
             .setUuidAndExoMediaDrmProvider(uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
             .build(callback)
     }
+
+    /** True when any track carries DRM init data, i.e. the stream really is encrypted. */
+    private fun List<Tracks.Group>.isProtected(): Boolean =
+        any { group -> (0 until group.length).any { group.getTrackFormat(it).drmInitData != null } }
 
     private fun handleError(error: PlaybackException) {
         when {

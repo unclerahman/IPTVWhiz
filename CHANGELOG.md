@@ -3,6 +3,24 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.6 (2026-10-30)
+
+**Fixed**
+- **FAST channels that stopped playing in 0.6.5 play again.** Some playlists put a DRM line on channels that are not actually encrypted, often a half-written one (a ClearKey type with a key that isn't a usable key, or a Widevine type with no license link). 0.6.5 refused to load any channel like that, so the owner's free channels showed the copy-protection card instead of the picture. The player now always tries the stream first; a clear channel simply plays, and the DRM line is only used to explain a failure when the stream really is encrypted.
+- **An encrypted channel whose key line is incomplete now explains itself at once.** As soon as the player sees encrypted tracks and the playlist has no usable key, the copy-protection card appears (about two seconds) instead of a black screen for the 20-second no-picture watchdog.
+- **The small line under the card names the playlist, not the device.** For an incomplete DRM line it now reads "clearkey · no key in the playlist" (or "widevine · the playlist has no license link") instead of blaming the device or a license server that was never asked.
+
+**Notes**
+- Nothing about keys changed: the app still only uses DRM data from the user's own playlist and never extracts or guesses a key.
+- No settings or database changes. Database stays at v5, parser version stays 2.
+
+**Tests:** 78 JVM tests (2 new: the spurious-DRM test playlist and the card wording).
+
+**Verified on the phone emulator (Android 15, 2026-10-30):**
+- `testdata/spurious-drm-test.m3u`: seven clear HLS channels carrying an incomplete or unused DRM line (no key, a garbage key, a token instead of a license link, JSON without a key ID, a block above `#EXTINF`, and a complete key that the clear stream does not need) all played; the eighth, which really is encrypted with no usable key, showed "clearkey · no key in the playlist" within seconds.
+- TV3 SD still played with its ClearKey key (DRM lines above and below `#EXTINF`), and the no-key TV3 variant still showed "the stream is copy-protected, and the playlist has no key for it".
+- `testdata/drm-diagnostics-test.m3u` still reported the stale-key line, the license server's HTTP status, and the missing-key line; its control channel played.
+
 ## 0.6.5 (2026-10-29)
 
 **Fixed**

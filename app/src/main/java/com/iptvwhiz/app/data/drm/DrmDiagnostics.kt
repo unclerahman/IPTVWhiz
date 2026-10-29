@@ -40,6 +40,9 @@ fun drmFailureDetail(
     streamLacksScheme: Boolean = false,
 ): String {
     if (drm == null) return "the stream is copy-protected, and the playlist has no key for it"
+    // A half-written #KODIPROP line (type but no usable key/license) is a playlist problem, not a
+    // device or license-server problem, so say that before anything else.
+    if (!drm.isValid) return drmMissingDetail(drm)
     val system = drm.type.storage
     val keyIdMismatch = !drm.clearKeyMatches(requestedKeyIds)
     return when {

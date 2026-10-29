@@ -90,6 +90,21 @@ class DrmDiagnosticsTest {
     }
 
     @Test
+    fun `an incomplete drm line blames the playlist, not the device`() {
+        // A #KODIPROP block with a type but no usable key/license. The player may still play a clear
+        // stream; if it really is encrypted, this is the line under the card.
+        val drm = DrmInfo(type = DrmType.CLEAR_KEY)
+        assertEquals(
+            "clearkey · no key in the playlist",
+            drmFailureDetail(drm, requestedKeyIds = setOf("x"), deviceUnsupported = true),
+        )
+        assertEquals(
+            "widevine · the playlist has no license link",
+            drmFailureDetail(DrmInfo(type = DrmType.WIDEVINE), httpStatus = 403),
+        )
+    }
+
+    @Test
     fun `a protected stream with no drm lines explains itself`() {
         assertEquals(
             "the stream is copy-protected, and the playlist has no key for it",

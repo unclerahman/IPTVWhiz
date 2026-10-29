@@ -2,6 +2,7 @@ package com.iptvwhiz.app.data.m3u
 
 import com.iptvwhiz.app.data.drm.DrmType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -184,6 +185,22 @@ class M3uParserTest {
         assertEquals(DrmType.CLEAR_KEY, entries[0].drm?.type)
         assertNull(entries[1].drm)
         assertNull(entries[2].drm)
+    }
+
+    @Test
+    fun `incomplete DRM lines on clear channels stay unusable`() {
+        // testdata/spurious-drm-test.m3u: clear HLS streams carrying a spurious or half-written
+        // #KODIPROP block. The parser must keep the block (it cannot see the stream), and the block
+        // must stay unusable, so the player has to try the stream instead of refusing the channel.
+        val file = File("../testdata/spurious-drm-test.m3u")
+        val entries = file.bufferedReader().use { M3uParser.parse(it) }.entries
+        assertEquals(8, entries.size)
+        assertTrue(entries.take(5).all { it.drm != null && !it.drm!!.isValid })
+        assertNull(entries[5].drm)
+        assertEquals(DrmType.CLEAR_KEY, entries[6].drm?.type)
+        assertFalse(entries[6].drm!!.isValid)
+        assertEquals(DrmType.CLEAR_KEY, entries[7].drm?.type)
+        assertTrue(entries[7].drm!!.isValid)
     }
 
     @Test
