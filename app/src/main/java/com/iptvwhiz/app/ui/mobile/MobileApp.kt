@@ -44,6 +44,7 @@ fun MobileApp(hasPlaylist: Boolean) {
                 composable(Routes.BACKUP) { MobileBackupScreen(onBack = back) }
                 composable(Routes.EPG) { MobileEpgSettingsScreen(onBack = back) }
                 composable(Routes.VIEWING) { MobileViewingScreen(onBack = back) }
+                composable(Routes.UPDATE) { MobileUpdateScreen(onBack = back) }
                 composable(Routes.WATCHLISTS) {
                     MobileWatchlistsScreen(onOpenList = { nav.navigate(Routes.watchlist(it)) }, onBack = back)
                 }

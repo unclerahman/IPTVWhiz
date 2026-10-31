@@ -102,6 +102,13 @@ val settingsEntries = listOf(
         section = SettingsSection.AppData,
     ),
     SettingsEntry(
+        R.string.settings_update,
+        R.string.settings_update_desc,
+        route = Routes.UPDATE,
+        icon = Icons.Filled.CheckCircle,
+        section = SettingsSection.AppData,
+    ),
+    SettingsEntry(
         R.string.settings_about,
         R.string.settings_about_desc,
         icon = Icons.Filled.Info,

@@ -532,3 +532,23 @@ https://server/stream.mpd
 - Widevine: `angel-one-widevine` with `https://proxy.uat.widevine.com/proxy`.
 - Plus one broken ClearKey entry to check the error card, and a plain HLS channel as a no-DRM regression check.
 
+---
+
+## 21. In-app updates from GitHub releases (0.6.7, 2026-10-31)
+
+**Why:** the app is sideloaded, so until now every update meant sending the owner an APK file by hand. With releases public on GitHub, the app can check for a newer version and fetch it itself — no accounts, no store.
+
+**Prerequisite:** the GitHub repository `unclerahman/IPTVWhiz` is **public** (owner approved 2026-10-31). The anonymous releases API returns 404 for a private repo, so there is no way to keep the code private and still let the app check. The git history was scanned for secrets and the owner's playlist before the switch; only test fixtures mention words like "password". A GitHub token was never an option: anything embedded in the APK can be extracted by anyone.
+
+**How it works**
+
+- `data/update/UpdateChecker.kt` (pure, JVM-tested): parses the `releases/latest` JSON — `tag_name` without its `v` prefix is the version, the first `*.apk` asset is the download, `body` is the notes. `isNewer(latest, current)` compares numeric parts only and stops at the first non-numeric one, so a pre-release tag like `0.6.6-beta.1` never counts as newer than `0.6.6`.
+- `ui/state/UpdateViewModel.kt`: Idle → Checking → UpToDate / Available / Failed; Available → Downloading (percent) → Installing → AwaitingInstall. The APK streams into `cacheDir/update.apk` and is shared with the **system installer** through `FileProvider` (`${applicationId}.updates`, `res/xml/update_paths.xml`) via `ACTION_VIEW` with `application/vnd.android.package-archive`. The app never runs or patches an APK. `Failed(fromDownload = true)` distinguishes a broken download from a failed check.
+- `ui/common/UpdateScreen.kt`: one shared body. TV passes `Brand` button colors and an explicit light `textColor` — under the TV theme the shared mobile-MaterialTheme text defaults to invisible dark-on-dark — plus D-pad focus tracking on the one active button. Phone wraps it in `Scaffold` + `BackTopBar`.
+- Entry point: Settings → "Check for updates" (App & data section, `Routes.UPDATE`, wired in both `TvApp` and `MobileApp`). The screen checks quietly on open; if the check fails it just offers the button.
+- Manifest: `REQUEST_INSTALL_PACKAGES` (Android 8+ requires it to hand an APK to the installer). The user sees Android's "allow installs from IPTV Whiz" prompt once; installs themselves stay the system's job.
+
+**Releasing with it:** build `assembleRelease`, put the APK on a GitHub release as an asset (name ending `.apk`), tag like `v0.6.8`. The next time any installed app checks, it offers the update with the release notes.
+
+**Tests:** 4 new JVM tests in `UpdateCheckerTest` (asset pick, no-APK release, malformed JSON, version ordering incl. pre-release tags). Verified live on both emulators: the up-to-date path against the real repo, and — with the version faked to 0.6.0 on the TV emulator — Available with real release notes, a real download, and Android's installer prompt.
+

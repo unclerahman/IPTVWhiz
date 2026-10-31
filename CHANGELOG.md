@@ -3,6 +3,22 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.7 (2026-10-31)
+
+**New**
+- **The app can update itself.** Settings → Check for updates (phone and TV) asks GitHub whether a newer IPTV Whiz release is out; if so it shows the release notes and a **Download and update** button. The download goes to the app's cache and is handed to Android's own installer — the app never installs anything itself. The first time, Android asks whether IPTV Whiz may install updates; after allowing it once, updates are one tap. If the newest release has no app file attached, the screen offers to open the release page in a browser instead.
+
+**Notes**
+- The GitHub repository is now **public** (the owner approved it): the update check reads the public releases API anonymously, and history was scanned for secrets and the owner's playlist before the switch — nothing sensitive found (test fixtures only).
+- `REQUEST_INSTALL_PACKAGES` was added; installs still go through the system installer. No settings or database changes. Database stays at v5, parser version stays 2.
+
+**Tests:** 82 JVM tests (4 new for release parsing and version comparison).
+
+**Verified (2026-10-31):**
+- Phone emulator: the check against the real GitHub repo reported "You're up to date. IPTV Whiz 0.6.7 is the newest version." (latest release v0.6.6 is older).
+- TV emulator: the same up-to-date screen, and — with the version temporarily set below the release — the full path: "IPTV Whiz 0.6.6 is available" with the real release notes, **Download and update** downloaded the APK and opened Android's installer security prompt ("allow installs from this source"). A release with no APK shows the browser fallback.
+- A failed check (while the repo was still private) showed the plain "Couldn't check for updates" message; a download failure shows its own message.
+
 ## 0.6.6 (2026-10-30)
 
 **Fixed**

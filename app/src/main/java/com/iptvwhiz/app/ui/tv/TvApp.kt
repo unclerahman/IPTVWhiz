@@ -51,6 +51,7 @@ fun TvApp(hasPlaylist: Boolean) {
                 composable(Routes.EPG) { TvEpgSettingsScreen() }
                 composable(Routes.WATCHLISTS) { TvWatchlistsScreen() }
                 composable(Routes.VIEWING) { TvViewingScreen() }
+                composable(Routes.UPDATE) { TvUpdateScreen() }
                 composable(Routes.PLAYER, arguments = Routes.playerArguments) {
                     TvPlayerScreen(onBack = { nav.popBackStack() })
                 }

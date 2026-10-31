@@ -24,6 +24,7 @@ object Routes {
     const val BACKUP = "backup"
     const val EPG = "epg"
     const val VIEWING = "viewing"
+    const val UPDATE = "update"
 
     const val ARG_PLAYLIST = "playlistId"
     const val ARG_GROUP = "group"
