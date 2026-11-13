@@ -39,7 +39,6 @@ import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.ui.TopLevel
 import com.iptvwhiz.app.ui.common.AdSlot
 import com.iptvwhiz.app.ui.common.BackToExit
-import com.iptvwhiz.app.ui.common.emptyState
 import com.iptvwhiz.app.ui.common.settingsEntries
 import com.iptvwhiz.app.ui.common.showComingSoon
 import com.iptvwhiz.app.ui.theme.TvSafeArea
@@ -88,7 +87,6 @@ fun TvHomeScreen(
                 TopLevel.Search -> TvSearchContent(onPlay = onPlayQueue)
                 TopLevel.Guide -> TvGuideContent(onPlay = onPlay)
                 TopLevel.Settings -> TvSettings(onOpenRoute)
-                else -> selected.emptyState()?.let { TvEmptyState(it) }
             }
         }
     }

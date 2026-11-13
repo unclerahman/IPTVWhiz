@@ -279,6 +279,18 @@ internal fun MobileBrowse(
                         onClick = { vm.selectGroup(OrganizedPlaylist.ALL) },
                     )
                 }
+            }
+            // One order on TV and phone: All channels, your watchlists, then the provider's groups.
+            items(shownLists, key = { OrganizedPlaylist.watchlistKey(it.id) }) { list ->
+                BrowseChip(
+                    label = watchlistName(list),
+                    count = list.available.size,
+                    selected = selectedGroup == OrganizedPlaylist.watchlistKey(list.id),
+                    onClick = { vm.selectGroup(OrganizedPlaylist.watchlistKey(list.id)) },
+                    isWatchlist = true,
+                )
+            }
+            if (!watchlistsOnly) {
                 items(groups, key = { it.key }) { group ->
                     BrowseChip(
                         label = group.displayName,
@@ -287,14 +299,6 @@ internal fun MobileBrowse(
                         onClick = { vm.selectGroup(group.key) },
                     )
                 }
-            }
-            items(shownLists, key = { OrganizedPlaylist.watchlistKey(it.id) }) { list ->
-                BrowseChip(
-                    label = watchlistName(list),
-                    count = list.available.size,
-                    selected = selectedGroup == OrganizedPlaylist.watchlistKey(list.id),
-                    onClick = { vm.selectGroup(OrganizedPlaylist.watchlistKey(list.id)) },
-                )
             }
         }
         MobileChannelList(
@@ -337,10 +341,16 @@ internal fun MobileBrowse(
 
 /** A filter chip with the number of channels in a quieter second weight. */
 @Composable
-private fun BrowseChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+private fun BrowseChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit, isWatchlist: Boolean = false) {
     FilterChip(
         selected = selected,
         onClick = onClick,
+        // A heart tells your own lists apart from the provider's groups.
+        leadingIcon = if (isWatchlist) {
+            { Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+        } else {
+            null
+        },
         label = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)

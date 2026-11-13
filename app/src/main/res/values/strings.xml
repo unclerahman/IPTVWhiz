@@ -4,7 +4,6 @@
     <!-- Navigation -->
     <string name="nav_live">Live TV</string>
     <string name="nav_guide">Guide</string>
-    <string name="nav_favorites">Favorites</string>
     <string name="nav_search">Search</string>
     <string name="nav_settings">Settings</string>
     <string name="back">Back</string>
@@ -35,7 +34,6 @@
     <string name="field_server_hint">e.g. http://example.com:8080</string>
     <string name="field_username">Username</string>
     <string name="field_password">Password</string>
-    <string name="field_empty">Not set</string>
     <string name="field_required">Required</string>
     <string name="field_invalid_url">Enter a full link starting with http:// or https://</string>
     <string name="add_playlist_button">Add playlist</string>
@@ -67,12 +65,8 @@
     <string name="empty_live_title">No channels yet</string>
     <string name="empty_live_message">Add a provider to see your channels here.</string>
     <string name="empty_group">No channels in this group.</string>
-    <string name="empty_guide_title">No TV guide yet</string>
-    <string name="empty_guide_message">The guide will show what\'s on once EPG support arrives.</string>
     <string name="empty_favorites_title">Your watchlists are empty</string>
     <string name="empty_favorites_message">Long-press a channel (or press Menu on the remote), in a list or while watching, and choose Add to favorites or Add to watchlist.</string>
-    <string name="empty_search_title">Search channels</string>
-    <string name="empty_search_message">Search is coming in a future update.</string>
     <string name="add_provider">Add provider</string>
     <string name="loading_channels">Loading your channels…</string>
 
@@ -88,7 +82,6 @@
     <string name="previous_channel">Previous channel</string>
     <string name="player_connecting">Tuning in…</string>
     <string name="live_badge">LIVE</string>
-    <string name="channel_list">Channel list</string>
     <string name="channel_position">%1$d of %2$d</string>
     <string name="no_channel_number">No channel %1$d in this list</string>
     <string name="preview_playing">Playing now</string>
@@ -191,7 +184,6 @@
     <string name="group_counts">%1$s shown · %2$s hidden</string>
     <string name="move_hint_tv">▲▼ move · OK place it · Back cancel</string>
     <string name="move_hint_phone">Drag ≡ to change the order</string>
-    <string name="label_visible">Shown</string>
     <string name="label_favorite">Favorite</string>
     <string name="more_options">More options</string>
 

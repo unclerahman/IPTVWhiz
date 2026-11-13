@@ -24,14 +24,6 @@ import com.iptvwhiz.app.ui.TopLevel
 /** Text for a section's empty state; shared by the TV and mobile layouts. */
 data class EmptyStateText(@StringRes val title: Int, @StringRes val message: Int)
 
-fun TopLevel.emptyState(): EmptyStateText? = when (this) {
-    TopLevel.Live -> null
-    TopLevel.Guide -> null
-    TopLevel.Favorites -> null
-    TopLevel.Search -> EmptyStateText(R.string.empty_search_title, R.string.empty_search_message)
-    TopLevel.Settings -> null
-}
-
 val NoPlaylistText = EmptyStateText(R.string.empty_live_title, R.string.empty_live_message)
 
 /** A group of related settings, rendered with a small header above it. */

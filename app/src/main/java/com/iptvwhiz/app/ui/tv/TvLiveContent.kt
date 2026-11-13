@@ -150,16 +150,7 @@ fun TvLiveContent(
                         )
                     }
                 }
-                itemsIndexed(shownLists, key = { _, it -> OrganizedPlaylist.watchlistKey(it.id) }) { index, list ->
-                    val key = OrganizedPlaylist.watchlistKey(list.id)
-                    GroupRow(
-                        name = watchlistName(list),
-                        count = list.available.size,
-                        selected = selectedGroup == key,
-                        onFocused = { vm.selectGroup(key) },
-                        modifier = if (watchlistsOnly && index == 0) Modifier.focusRequester(firstGroupFocus) else Modifier,
-                    )
-                }
+                // One order on TV and phone: All channels, your watchlists, then the provider's groups.
                 if (!watchlistsOnly) {
                     item(key = OrganizedPlaylist.ALL) {
                         GroupRow(
@@ -170,6 +161,19 @@ fun TvLiveContent(
                             modifier = Modifier.focusRequester(firstGroupFocus),
                         )
                     }
+                }
+                itemsIndexed(shownLists, key = { _, it -> OrganizedPlaylist.watchlistKey(it.id) }) { index, list ->
+                    val key = OrganizedPlaylist.watchlistKey(list.id)
+                    GroupRow(
+                        name = watchlistName(list),
+                        count = list.available.size,
+                        selected = selectedGroup == key,
+                        onFocused = { vm.selectGroup(key) },
+                        modifier = if (watchlistsOnly && index == 0) Modifier.focusRequester(firstGroupFocus) else Modifier,
+                        isWatchlist = true,
+                    )
+                }
+                if (!watchlistsOnly) {
                     items(groups, key = { it.key }) { group ->
                         GroupRow(
                             name = group.displayName,
@@ -310,12 +314,19 @@ private fun GroupRow(
     selected: Boolean,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
+    isWatchlist: Boolean = false,
 ) {
     ListItem(
         selected = selected,
         onClick = onFocused,
         modifier = modifier.onFocusChanged { if (it.isFocused) onFocused() },
         scale = ListItemDefaults.scale(focusedScale = 1.02f),
+        // A heart tells your own lists apart from the provider's groups.
+        leadingContent = if (isWatchlist) {
+            { Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        } else {
+            null
+        },
         headlineContent = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             Text(formatCount(count), style = MaterialTheme.typography.labelLarge)
