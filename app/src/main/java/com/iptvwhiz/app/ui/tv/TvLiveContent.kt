@@ -39,6 +39,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
@@ -60,15 +61,21 @@ import com.iptvwhiz.app.ui.common.NoPlaylistText
 import com.iptvwhiz.app.ui.common.NoWatchlistsText
 import com.iptvwhiz.app.ui.common.ProgramProgress
 import com.iptvwhiz.app.ui.common.formatCount
+import com.iptvwhiz.app.ui.common.requestFocusUntil
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
 import com.iptvwhiz.app.ui.common.watchlistName
 import com.iptvwhiz.app.ui.state.LiveViewModel
+import com.iptvwhiz.app.ui.state.PlayerViewModel
 import com.iptvwhiz.app.ui.state.appViewModel
 
 /**
  * TiviMate-style browser: lists on the left, their channels on the right. Moving over a list shows
  * its channels straight away; OK plays, long-press OK or Menu edits.
  * Live TV shows watchlists, All channels and the playlist's groups; [watchlistsOnly] shows just watchlists.
+ *
+ * The player reuses it to browse while watching: [current] is the playing channel (highlighted and
+ * focused first), [queue] adds the search results the player was opened with as a first list, and
+ * [onFocusChannel] reports the channel under the cursor for the preview card.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -76,6 +83,10 @@ fun TvLiveContent(
     onPlay: (Channel, browseKey: String) -> Unit,
     onAddPlaylist: () -> Unit,
     watchlistsOnly: Boolean = false,
+    groupWidth: Dp = 320.dp,
+    current: ChannelRef? = null,
+    queue: List<Channel>? = null,
+    onFocusChannel: (Channel) -> Unit = {},
 ) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
     val context = LocalContext.current
@@ -108,14 +119,14 @@ fun TvLiveContent(
         }
     }
 
-    var lastPlayedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastPlayedKey by rememberSaveable { mutableStateOf(current?.stableKey) }
     var editing by remember { mutableStateOf<Channel?>(null) }
     val firstGroupFocus = remember { FocusRequester() }
     val playlistNames = playlists.orEmpty().associate { it.id to it.name }
     val inWatchlist = OrganizedPlaylist.watchlistId(selectedGroup) != null
 
     Row(Modifier.fillMaxSize()) {
-        Column(Modifier.width(320.dp).fillMaxHeight()) {
+        Column(Modifier.width(groupWidth).fillMaxHeight()) {
             Text(
                 text = if (watchlistsOnly) stringResource(R.string.nav_watchlists) else active.name,
                 style = MaterialTheme.typography.titleMedium,
@@ -128,6 +139,16 @@ fun TvLiveContent(
                 modifier = Modifier.focusRestorer { firstGroupFocus },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                if (queue != null) {
+                    item(key = PlayerViewModel.QUEUE_KEY) {
+                        GroupRow(
+                            name = stringResource(R.string.search_results),
+                            count = queue.size,
+                            selected = selectedGroup == PlayerViewModel.QUEUE_KEY,
+                            onFocused = { vm.selectGroup(PlayerViewModel.QUEUE_KEY) },
+                        )
+                    }
+                }
                 itemsIndexed(shownLists, key = { _, it -> OrganizedPlaylist.watchlistKey(it.id) }) { index, list ->
                     val key = OrganizedPlaylist.watchlistKey(list.id)
                     GroupRow(
@@ -162,17 +183,20 @@ fun TvLiveContent(
         Spacer(Modifier.width(24.dp))
         Box(Modifier.weight(1f).fillMaxHeight()) {
             TvChannelList(
-                channels = channels,
+                channels = if (selectedGroup == PlayerViewModel.QUEUE_KEY) queue.orEmpty() else channels,
                 guide = guide,
                 health = health,
                 favorites = favorites,
                 subtitle = { channel ->
                     when {
                         inWatchlist && playlistNames.size > 1 -> "${playlistNames[channel.playlistId].orEmpty()} · ${channel.groupTitle}"
-                        inWatchlist || selectedGroup == OrganizedPlaylist.ALL -> channel.groupTitle
+                        inWatchlist || selectedGroup == OrganizedPlaylist.ALL ||
+                            selectedGroup == PlayerViewModel.QUEUE_KEY -> channel.groupTitle
                         else -> null
                     }
                 },
+                current = current,
+                onFocusChannel = onFocusChannel,
                 listKey = selectedGroup,
                 lastPlayedKey = lastPlayedKey,
                 onPlay = { channel ->
@@ -220,6 +244,8 @@ internal fun TvChannelList(
     onPlay: (Channel) -> Unit,
     onEdit: (Channel) -> Unit,
     modifier: Modifier = Modifier,
+    current: ChannelRef? = null,
+    onFocusChannel: (Channel) -> Unit = {},
 ) {
     if (channels.isEmpty()) {
         Text(
@@ -236,9 +262,12 @@ internal fun TvChannelList(
         val start = channels.indexOfFirst { it.stableKey == lastPlayedKey }
         LazyListState(firstVisibleItemIndex = (start - 3).coerceAtLeast(0))
     }
+    var listHasFocus by remember { mutableStateOf(false) }
     LazyColumn(
         state = listState,
-        modifier = modifier.focusRestorer { firstChannelFocus },
+        modifier = modifier
+            .focusRestorer { firstChannelFocus }
+            .onFocusChanged { listHasFocus = it.hasFocus },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
@@ -249,19 +278,22 @@ internal fun TvChannelList(
             }
             ChannelRow(
                 channel = channel,
+                selected = channel.ref == current,
                 programme = guide[channel.ref],
                 health = health[channel.ref],
                 isFavorite = channel.ref in favorites,
                 subtitle = subtitle(channel),
                 onClick = { onPlay(channel) },
                 onLongClick = { onEdit(channel) },
-                modifier = if (requester != null) Modifier.focusRequester(requester) else Modifier,
+                modifier = (if (requester != null) Modifier.focusRequester(requester) else Modifier)
+                    .onFocusChanged { if (it.hasFocus) onFocusChannel(channel) },
             )
         }
     }
     LaunchedEffect(Unit) {
         if (lastPlayedKey != null && channels.any { it.stableKey == lastPlayedKey }) {
-            lastPlayedFocus.requestFocusWhenReady()
+            // Once per opening: the player's panel slides in, so a single request can be lost.
+            lastPlayedFocus.requestFocusUntil({ listHasFocus })
         }
     }
 }

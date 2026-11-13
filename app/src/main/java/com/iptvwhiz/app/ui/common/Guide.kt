@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -20,6 +22,7 @@ import com.iptvwhiz.app.data.db.ProgramSlot
 import com.iptvwhiz.app.data.epg.EpgRepository
 import com.iptvwhiz.app.data.epg.EpgWork
 import java.util.Date
+import kotlinx.coroutines.delay
 
 /** Thin bar showing how far into the current programme we are. Theme-neutral: colours passed in. */
 @Composable
@@ -36,6 +39,15 @@ fun ProgramProgress(fraction: Float, color: Color, track: Color, modifier: Modif
                 .fillMaxHeight()
                 .background(color),
         )
+    }
+}
+
+/** The current time, updated on every new minute: enough for the guide's "now" line and colours. */
+@Composable
+fun rememberNow(): State<Long> = produceState(System.currentTimeMillis()) {
+    while (true) {
+        delay(60_000 - System.currentTimeMillis() % 60_000)
+        value = System.currentTimeMillis()
     }
 }
 

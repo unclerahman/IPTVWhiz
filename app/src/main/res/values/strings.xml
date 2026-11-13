@@ -91,6 +91,10 @@
     <string name="channel_list">Channel list</string>
     <string name="channel_position">%1$d of %2$d</string>
     <string name="no_channel_number">No channel %1$d in this list</string>
+    <string name="preview_playing">Playing now</string>
+    <string name="browse_channels">Browse channels</string>
+    <string name="player_tab_channels">Channels</string>
+    <string name="player_open_guide">TV guide</string>
     <string name="player_hint_tv">OK: channels · hold OK: menu · ▲▼: switch · Back: exit</string>
 
     <!-- Playlists -->
@@ -227,8 +231,9 @@
     <!-- TV guide -->
     <string name="guide_next">Next %1$s · %2$s</string>
     <string name="guide_now_next_title">TV guide</string>
-    <string name="guide_now">Now</string>
-    <string name="guide_hours_ahead">+%1$d h</string>
+    <string name="guide_swipe_hint">Swipe sideways to see what\'s on later</string>
+    <string name="guide_back_to_now">Back to now</string>
+    <string name="guide_watch_channel">Watch channel</string>
     <string name="guide_empty_title">No TV guide yet</string>
     <string name="guide_empty_message">The guide loads in the background after a playlist is added. You can check it or add a guide link in Settings → TV guide.</string>
     <string name="guide_nothing_now">No information</string>

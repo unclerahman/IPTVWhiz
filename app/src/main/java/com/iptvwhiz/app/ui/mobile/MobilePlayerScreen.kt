@@ -3,6 +3,19 @@ package com.iptvwhiz.app.ui.mobile
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.iptvwhiz.app.data.ref
+import com.iptvwhiz.app.ui.state.LiveViewModel
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -102,6 +115,7 @@ private const val CONTROLS_MS = 4_000L
  * Portrait: video on top, what's playing, then the channel list.
  * Landscape: full screen. Tap shows controls; swipe up/down on the video changes channel.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MobilePlayerScreen(onBack: () -> Unit) {
     val vm = appViewModel { container, savedState -> PlayerViewModel(container, savedState) }
@@ -114,8 +128,53 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     val watchlists by vm.watchlists.collectAsStateWithLifecycle()
     val showQuality by vm.showQuality.collectAsStateWithLifecycle()
     val stats by vm.livePlayer.stats.collectAsStateWithLifecycle()
+    val listKey by vm.listKey.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<Channel?>(null) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Browsing while watching: the same lists, guide and status as Live TV, starting on the list being watched.
+    val browse = appViewModel { container, _ -> LiveViewModel(container) }
+    LaunchedEffect(listKey) { browse.selectGroup(listKey) }
+    /** Full screen only: the channel panel over the video. */
+    var browseOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = browseOpen && landscape) { browseOpen = false }
+    /** Channels or the timeline guide, under the video (or beside it in full screen). */
+    var showGuide by rememberSaveable { mutableStateOf(false) }
+    val browser = @Composable { modifier: Modifier, onPicked: () -> Unit ->
+        val play = { channel: Channel, key: String ->
+            vm.playFrom(key, channel)
+            onPicked()
+        }
+        Column(modifier) {
+            PrimaryTabRow(
+                selectedTabIndex = if (showGuide) 1 else 0,
+                containerColor = Color.Transparent,
+            ) {
+                listOf(R.string.player_tab_channels to false, R.string.nav_guide to true).forEach { (label, guideTab) ->
+                    Tab(
+                        selected = showGuide == guideTab,
+                        onClick = { showGuide = guideTab },
+                        text = { Text(stringResource(label)) },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (showGuide) {
+                MobileGuideContent(browse, play, Modifier.fillMaxWidth().weight(1f))
+            } else {
+                MobileBrowse(
+                    vm = browse,
+                    onPlay = play,
+                    onAddPlaylist = {},
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    watchlistsOnly = false,
+                    current = current?.ref,
+                    queue = vm.queue,
+                )
+            }
+        }
+    }
 
     var controlsVisible by remember { mutableStateOf(true) }
     LaunchedEffect(controlsVisible, current?.stableKey) {
@@ -159,6 +218,10 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             fullScreen = landscape,
             onToggleQuality = vm::toggleQuality,
             onToggleFullScreen = toggleFullScreen,
+            onBrowse = {
+                browseOpen = true
+                controlsVisible = false
+            },
             onBack = onBack,
             modifier = modifier,
         )
@@ -178,7 +241,29 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     }
 
     if (landscape) {
-        video(Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize()) {
+            video(Modifier.fillMaxSize())
+            AnimatedVisibility(
+                visible = browseOpen,
+                enter = slideInHorizontally { -it } + fadeIn(),
+                exit = slideOutHorizontally { -it } + fadeOut(),
+            ) {
+                Row(Modifier.fillMaxSize()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                        modifier = Modifier.width(400.dp).fillMaxHeight(),
+                    ) {
+                        browser(Modifier.fillMaxSize().displayCutoutPadding()) { browseOpen = false }
+                    }
+                    // Tapping the video beside the panel closes it.
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) { detectTapGestures { browseOpen = false } },
+                    )
+                }
+            }
+        }
     } else {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) {
@@ -186,7 +271,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             }
             current?.let { NowPlaying(it, groupName, programme) }
             HorizontalDivider()
-            PortraitChannelList(channels, index, onSelect = vm::playAt, onLongPress = { menuFor = it })
+            browser(Modifier.fillMaxWidth().weight(1f)) {}
         }
     }
 }
@@ -204,6 +289,7 @@ private fun VideoArea(
     fullScreen: Boolean,
     onToggleQuality: () -> Unit,
     onToggleFullScreen: () -> Unit,
+    onBrowse: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier,
 ) {
@@ -295,6 +381,11 @@ private fun VideoArea(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (fullScreen) {
+                        IconButton(onClick = onBrowse) {
+                            Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.browse_channels), tint = Color.White)
+                        }
                     }
                     IconButton(onClick = onToggleQuality) {
                         Icon(
@@ -481,68 +572,6 @@ private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?) {
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun PortraitChannelList(
-    channels: List<Channel>,
-    currentIndex: Int,
-    onSelect: (Int) -> Unit,
-    onLongPress: (Channel) -> Unit,
-) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0) listState.animateScrollToItem((currentIndex - 2).coerceAtLeast(0))
-    }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
-    ) {
-        itemsIndexed(channels, key = { _, it -> it.stableKey }) { i, channel ->
-            val isCurrent = i == currentIndex
-            Box {
-                ListItem(
-                    leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 40.dp) },
-                    headlineContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                channel.number.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.widthIn(min = 22.dp),
-                            )
-                            Text(
-                                channel.name,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                ),
-                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = if (isCurrent) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                    ),
-                    modifier = Modifier.combinedClickable(onClick = { onSelect(i) }, onLongClick = { onLongPress(channel) }),
-                )
-                if (isCurrent) {
-                    // Left accent bar: the playing channel is obvious without painting the whole row.
-                    Box(
-                        Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 6.dp)
-                            .width(3.dp)
-                            .height(28.dp)
-                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)),
-                    )
                 }
             }
         }

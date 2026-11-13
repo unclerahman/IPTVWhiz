@@ -11,6 +11,7 @@ import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.drm.drmInfo
 import com.iptvwhiz.app.data.epg.NowNext
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.player.LivePlayer
 import com.iptvwhiz.app.player.PlaybackProblem
 import com.iptvwhiz.app.ui.Routes
@@ -36,11 +37,22 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(private val container: AppContainer, savedState: SavedStateHandle) : ViewModel() {
     private val prefs = container.prefs
 
-    private val source: String = savedState[Routes.ARG_SOURCE] ?: Routes.SOURCE_GROUP
-    private val playlistId: Long = savedState[Routes.ARG_PLAYLIST] ?: -1L
+    // The list being zapped through. Browsing while watching can switch it (see [playFrom]).
+    private var source: String = savedState[Routes.ARG_SOURCE] ?: Routes.SOURCE_GROUP
+    private var playlistId: Long = savedState[Routes.ARG_PLAYLIST] ?: -1L
     /** A group key or [OrganizedPlaylist.ALL] (group source), or a watchlist key. */
-    val group: String = savedState[Routes.ARG_GROUP] ?: OrganizedPlaylist.ALL
+    private var group: String = savedState[Routes.ARG_GROUP] ?: OrganizedPlaylist.ALL
     private val startKey: String? = savedState[Routes.ARG_KEY]
+
+    /** The search results this player was opened with, if any; they stay browsable after switching lists. */
+    val queue: List<Channel>? = if (source == Routes.SOURCE_QUEUE) container.playQueue.toList() else null
+
+    private val _listKey = MutableStateFlow(browseKey())
+
+    /** The browse key of the list being zapped through: a group, a watchlist, [OrganizedPlaylist.ALL] or [QUEUE_KEY]. */
+    val listKey: StateFlow<String> = _listKey.asStateFlow()
+
+    private fun browseKey() = if (source == Routes.SOURCE_QUEUE) QUEUE_KEY else group
 
     val livePlayer = LivePlayer(container.appContext, container.http)
 
@@ -53,9 +65,6 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
     /** The list's name: a renamed group or a watchlist; null for "All channels", Favorites and search. */
     private val _groupName = MutableStateFlow<String?>(null)
     val groupName: StateFlow<String?> = _groupName.asStateFlow()
-
-    /** Which kind of list this is, for its title. */
-    val sourceKind: String get() = source
 
     private val _index = MutableStateFlow(-1)
     val index: StateFlow<Int> = _index.asStateFlow()
@@ -101,7 +110,7 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
             _groupName.value = watchlist?.takeUnless { it.isFavorites }?.name
             watchlist?.available.orEmpty()
         }
-        Routes.SOURCE_QUEUE -> container.playQueue
+        Routes.SOURCE_QUEUE -> queue.orEmpty()
         else -> {
             val organized = container.overlay.organizedNow(playlistId)
             _groupName.value = organized.groups.firstOrNull { it.key == group }?.displayName
@@ -175,6 +184,37 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
         prefs.setLastChannel(channel.playlistId, channel.stableKey)
     }
 
+    /**
+     * Plays [channel] from another list picked while browsing in the player: [key] is a group,
+     * a watchlist, [OrganizedPlaylist.ALL] or [QUEUE_KEY]. Zapping then follows that list.
+     */
+    fun playFrom(key: String, channel: Channel) {
+        if (key == _listKey.value) {
+            val i = _channels.value.indexOfFirst { it.ref == channel.ref }
+            if (i >= 0) playAt(i)
+            return
+        }
+        when {
+            key == QUEUE_KEY -> source = Routes.SOURCE_QUEUE
+            OrganizedPlaylist.watchlistId(key) != null -> source = Routes.SOURCE_WATCHLIST
+            else -> {
+                source = Routes.SOURCE_GROUP
+                playlistId = channel.playlistId
+            }
+        }
+        group = key
+        _listKey.value = key
+        _groupName.value = null
+        viewModelScope.launch {
+            val list = loadChannels()
+            val i = list.indexOfFirst { it.ref == channel.ref }
+            _channels.value = list.ifEmpty { listOf(channel) }
+            _index.value = i.coerceAtLeast(0)
+            livePlayer.play(channel)
+            prefs.setLastChannel(channel.playlistId, channel.stableKey)
+        }
+    }
+
     fun next() = playAt(_index.value + 1)
 
     fun previous() = playAt(_index.value - 1)
@@ -185,6 +225,11 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
         if (i < 0) return false
         playAt(i)
         return true
+    }
+
+    companion object {
+        /** Browse key for the search results the player was opened with. */
+        const val QUEUE_KEY = "\u0000queue"
     }
 
     override fun onCleared() {

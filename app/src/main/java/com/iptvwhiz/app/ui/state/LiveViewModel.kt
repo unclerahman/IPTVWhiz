@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -110,8 +112,9 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {
-        // A different playlist starts at "All channels".
-        playlistId.onEach { _selectedGroup.value = OrganizedPlaylist.ALL }.launchIn(viewModelScope)
+        // A different playlist starts at "All channels". The first playlist to load is not a change:
+        // the player's browser picks its starting list before it arrives.
+        playlistId.filterNotNull().drop(1).onEach { _selectedGroup.value = OrganizedPlaylist.ALL }.launchIn(viewModelScope)
     }
 
     fun selectGroup(key: String) {

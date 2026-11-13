@@ -100,6 +100,7 @@ import com.iptvwhiz.app.ui.common.settingsEntries
 import com.iptvwhiz.app.ui.common.showComingSoon
 import com.iptvwhiz.app.ui.common.watchlistName
 import com.iptvwhiz.app.ui.state.LiveViewModel
+import com.iptvwhiz.app.ui.state.PlayerViewModel
 import com.iptvwhiz.app.ui.state.appViewModel
 
 /** Search lives in the top bar on phones, so the bottom bar shows the other four sections. */
@@ -191,14 +192,20 @@ fun MobileHomeScreen(
     }
 }
 
-/** Live TV (watchlists, All channels, groups) or just the watchlists, as chips over a channel list. */
+/**
+ * Live TV (watchlists, All channels, groups) or just the watchlists, as chips over a channel list.
+ * The player reuses it to browse while watching: [current] is the playing channel (marked, and
+ * scrolled to), and [queue] adds the search results the player was opened with as a first list.
+ */
 @Composable
-private fun MobileBrowse(
+internal fun MobileBrowse(
     vm: LiveViewModel,
     onPlay: (Channel, browseKey: String) -> Unit,
     onAddPlaylist: () -> Unit,
     modifier: Modifier,
     watchlistsOnly: Boolean,
+    current: ChannelRef? = null,
+    queue: List<Channel>? = null,
 ) {
     val context = LocalContext.current
     val playlists by vm.playlists.collectAsStateWithLifecycle()
@@ -207,7 +214,7 @@ private fun MobileBrowse(
     val groups by vm.groups.collectAsStateWithLifecycle()
     val watchlists by vm.watchlists.collectAsStateWithLifecycle()
     val selectedGroup by vm.selectedGroup.collectAsStateWithLifecycle()
-    val channels by vm.channels.collectAsStateWithLifecycle()
+    val browsed by vm.channels.collectAsStateWithLifecycle()
     val guide by vm.guide.collectAsStateWithLifecycle()
     val health by vm.health.collectAsStateWithLifecycle()
     val favorites by vm.favorites.collectAsStateWithLifecycle()
@@ -231,8 +238,13 @@ private fun MobileBrowse(
         }
     }
 
+    val channels = if (selectedGroup == PlayerViewModel.QUEUE_KEY) queue.orEmpty() else browsed
     val listState = rememberLazyListState()
-    LaunchedEffect(selectedGroup) { listState.scrollToItem(0) }
+    // A new list starts at the top, or at the playing channel when it is in that list.
+    LaunchedEffect(selectedGroup, channels.isNotEmpty()) {
+        val playing = channels.indexOfFirst { it.ref == current }
+        listState.scrollToItem((playing - 2).coerceAtLeast(0))
+    }
     val chipState = rememberLazyListState()
     LaunchedEffect(shownLists.size) { chipState.scrollToItem(0) }
     var editing by remember { mutableStateOf<Channel?>(null) }
@@ -247,6 +259,16 @@ private fun MobileBrowse(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (queue != null) {
+                item(key = PlayerViewModel.QUEUE_KEY) {
+                    BrowseChip(
+                        label = stringResource(R.string.search_results),
+                        count = queue.size,
+                        selected = selectedGroup == PlayerViewModel.QUEUE_KEY,
+                        onClick = { vm.selectGroup(PlayerViewModel.QUEUE_KEY) },
+                    )
+                }
+            }
             // "All channels" first: it is the default view and the one people return to.
             if (!watchlistsOnly) {
                 item(key = OrganizedPlaylist.ALL) {
@@ -285,11 +307,13 @@ private fun MobileBrowse(
                     watchlistId != null && names.size > 1 ->
                         "${names[channel.playlistId].orEmpty()} · ${channel.groupTitle}"
                     watchlistId != null -> if (mixedGroups) channel.groupTitle else null
-                    selectedGroup == OrganizedPlaylist.ALL -> if (mixedGroups) channel.groupTitle else null
+                    selectedGroup == OrganizedPlaylist.ALL || selectedGroup == PlayerViewModel.QUEUE_KEY ->
+                        if (mixedGroups) channel.groupTitle else null
                     else -> null
                 }
             },
             listState = listState,
+            current = current,
             onPlay = { onPlay(it, selectedGroup) },
             onLongPress = { editing = it },
         )
@@ -341,22 +365,6 @@ private fun BrowseChip(label: String, count: Int, selected: Boolean, onClick: ()
     )
 }
 
-/** A plain filter chip for the guide's time jump (no count, just the label). */
-@Composable
-private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, maxLines = 1) },
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
-    )
-}
-
 @Composable
 private fun MobileLoading(modifier: Modifier) {
     Column(
@@ -387,6 +395,7 @@ internal fun MobileChannelList(
     onPlay: (Channel) -> Unit,
     onLongPress: (Channel) -> Unit,
     modifier: Modifier = Modifier,
+    current: ChannelRef? = null,
 ) {
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
@@ -399,6 +408,7 @@ internal fun MobileChannelList(
                     subtitle = subtitle(channel),
                     onClick = { onPlay(channel) },
                     onLongClick = { onLongPress(channel) },
+                    isCurrent = channel.ref == current,
                 )
                 if (index < channels.lastIndex) {
                     HorizontalDivider(
@@ -615,132 +625,5 @@ private fun MobileNowLine(programme: NowNext) {
             track = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         )
-    }
-}
-
-/** Guide section: what's on now and next — or at a picked hour — on every channel that has a guide. */
-@Composable
-private fun MobileGuideContent(vm: LiveViewModel, onPlay: (Channel, group: String) -> Unit, modifier: Modifier) {
-    val context = LocalContext.current
-    val organized by vm.organized.collectAsStateWithLifecycle()
-    val guide by vm.guide.collectAsStateWithLifecycle()
-    val schedule by vm.schedule.collectAsStateWithLifecycle()
-    val channels = remember(organized, guide) {
-        organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.ref] != null }
-    }
-    if (channels.isEmpty()) {
-        MobileEmptyState(
-            EmptyStateText(R.string.guide_empty_title, R.string.guide_empty_message),
-            modifier,
-            icon = Icons.Filled.DateRange,
-        )
-        return
-    }
-
-    // 0 = now; 1..12 = that many hours ahead.
-    var hourOffset by rememberSaveable { mutableIntStateOf(0) }
-
-    Column(modifier) {
-        Text(
-            stringResource(R.string.guide_now_next_title),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            (0..12).forEach { hour ->
-                val label = if (hour == 0) stringResource(R.string.guide_now)
-                else stringResource(R.string.guide_hours_ahead, hour)
-                TimeChip(label, hourOffset == hour, onClick = { hourOffset = hour })
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        LazyColumn {
-            itemsIndexed(channels, key = { _, it -> it.stableKey }) { index, channel ->
-                val programme = guide[channel.ref]
-                val slots = schedule[channel.ref]
-                Column {
-                    ListItem(
-                        leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
-                        overlineContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    channel.number.toString(),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.widthIn(min = 24.dp),
-                                )
-                                Text(
-                                    channel.name,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        },
-                        headlineContent = {
-                            if (hourOffset == 0) {
-                                Text(
-                                    programme?.now?.let { "${context.formatTimeRange(it)}  ${it.title}" }
-                                        ?: stringResource(R.string.guide_nothing_now),
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            } else {
-                                val at = System.currentTimeMillis() + hourOffset * 3_600_000L
-                                val slot = slots?.slotAt(at)
-                                Text(
-                                    slot?.let { "${context.formatTimeRange(it)}  ${it.title}" }
-                                        ?: stringResource(R.string.guide_nothing_now),
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        },
-                        supportingContent = {
-                            Column {
-                                if (hourOffset == 0) {
-                                    ProgramProgress(
-                                        fraction = programme?.progress(System.currentTimeMillis()) ?: 0f,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        track = MaterialTheme.colorScheme.surfaceVariant,
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    )
-                                    Text(
-                                        programme?.next?.let { context.nextLine(it) } ?: "",
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                } else {
-                                    // After the picked hour: the next thing after the slot covering it.
-                                    val at = System.currentTimeMillis() + hourOffset * 3_600_000L
-                                    val after = slots?.firstOrNull { it.start >= at }?.takeIf { it != slots.slotAt(at) }
-                                    Text(
-                                        after?.let { context.nextLine(it) } ?: "",
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        },
-                        modifier = Modifier.clickable { onPlay(channel, OrganizedPlaylist.ALL) },
-                    )
-                    if (index < channels.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 76.dp, end = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                        )
-                    }
-                }
-            }
-        }
     }
 }

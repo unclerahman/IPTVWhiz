@@ -1,7 +1,5 @@
 package com.iptvwhiz.app.ui.tv
 
-import com.iptvwhiz.app.ui.common.groupLabel
-import com.iptvwhiz.app.ui.Routes
 import android.view.KeyEvent as AndroidKeyEvent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -63,6 +61,15 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.db.Channel
+import com.iptvwhiz.app.data.db.HealthStatus
+import com.iptvwhiz.app.data.ref
+import com.iptvwhiz.app.ui.common.HealthBadge
+import com.iptvwhiz.app.ui.state.LiveViewModel
+import com.iptvwhiz.app.ui.theme.TvSafeArea
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.foundation.layout.size
+import androidx.tv.material3.Icon
 import com.iptvwhiz.app.data.epg.NowNext
 import com.iptvwhiz.app.ui.common.ProgramProgress
 import com.iptvwhiz.app.ui.common.formatTimeRange
@@ -97,8 +104,18 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     val watchlists by vm.watchlists.collectAsStateWithLifecycle()
     val showQuality by vm.showQuality.collectAsStateWithLifecycle()
     val stats by vm.livePlayer.stats.collectAsStateWithLifecycle()
+    val listKey by vm.listKey.collectAsStateWithLifecycle()
+    // Browsing while watching: the same lists, guide and status as Live TV.
+    val browse = appViewModel { container, _ -> LiveViewModel(container) }
+    val guide by browse.guide.collectAsStateWithLifecycle()
+    val health by browse.health.collectAsStateWithLifecycle()
+    val favorites by browse.favorites.collectAsStateWithLifecycle()
+    /** The channel under the cursor in the browse panel, for the preview card. */
+    var previewed by remember { mutableStateOf<Channel?>(null) }
 
     var listVisible by remember { mutableStateOf(false) }
+    /** The timeline guide over the video (quick menu → TV guide, or the remote's Guide key). */
+    var guideVisible by remember { mutableStateOf(false) }
     /** The channel whose quick menu is open (long-press OK / Menu), if any. */
     var menuFor by remember { mutableStateOf<Channel?>(null) }
     /** Set while OK is held down long enough to count as a long press. */
@@ -127,12 +144,21 @@ fun TvPlayerScreen(onBack: () -> Unit) {
         }
         digits = ""
     }
-    LaunchedEffect(listVisible, playerState.problem, menuFor) {
-        if (!listVisible && menuFor == null && playerState.problem == null) rootFocus.requestFocusWhenReady()
+    LaunchedEffect(listVisible, guideVisible, playerState.problem, menuFor) {
+        if (!listVisible && !guideVisible && menuFor == null && playerState.problem == null) rootFocus.requestFocusWhenReady()
+    }
+
+    // The panel opens on the list being watched, with the playing channel focused.
+    LaunchedEffect(listVisible) {
+        if (listVisible) {
+            browse.selectGroup(listKey)
+            previewed = current
+        }
     }
 
     // Back closes the list first; otherwise navigation pops the player as usual.
     BackHandler(enabled = listVisible) { listVisible = false }
+    BackHandler(enabled = guideVisible) { guideVisible = false }
 
     Box(
         modifier = Modifier
@@ -142,7 +168,11 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             .focusable()
             .onKeyEvent { event ->
                 // While the list is open, the D-pad belongs to the list.
-                if (listVisible) return@onKeyEvent false
+                if (listVisible || guideVisible) return@onKeyEvent false
+                if (event.key == Key.Guide && event.type == KeyEventType.KeyUp) {
+                    guideVisible = true
+                    return@onKeyEvent true
+                }
                 val isOk = event.key == Key.DirectionCenter || event.key == Key.Enter
                 // OK: a short press opens the channel list (on release); holding it opens the quick menu.
                 if (isOk) {
@@ -189,7 +219,8 @@ fun TvPlayerScreen(onBack: () -> Unit) {
 
         if (showQuality) QualityBadge(stats, Modifier.align(Alignment.TopStart).padding(32.dp))
 
-        playerState.problem?.let { problem ->
+        // Hidden while browsing: its Try again button would take the remote away from the list.
+        playerState.problem?.takeIf { !listVisible && !guideVisible }?.let { problem ->
             ProblemPanel(
                 message = context.playbackProblemMessage(problem),
                 detail = playerState.detail,
@@ -212,19 +243,54 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             enter = slideInHorizontally { -it } + fadeIn(),
             exit = slideOutHorizontally { -it } + fadeOut(),
         ) {
-            ChannelListOverlay(
-                title = when (vm.sourceKind) {
-                    Routes.SOURCE_QUEUE -> stringResource(R.string.search_results)
-                    else -> groupLabel(vm.group, groupName)
-                },
-                channels = channels,
-                currentIndex = index,
-                onSelect = { i ->
-                    vm.playAt(i)
-                    listVisible = false
-                },
-                onLongPress = { menuFor = it },
-            )
+            Row(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .width(600.dp)
+                        .fillMaxHeight()
+                        .background(Brush.horizontalGradient(listOf(Color(0xF50E1117), Color(0xE60E1117))))
+                        .padding(start = 32.dp, end = 16.dp, top = 27.dp, bottom = 27.dp),
+                ) {
+                    TvLiveContent(
+                        onPlay = { channel, key ->
+                            vm.playFrom(key, channel)
+                            listVisible = false
+                        },
+                        onAddPlaylist = {},
+                        groupWidth = 200.dp,
+                        current = current?.ref,
+                        queue = vm.queue,
+                        onFocusChannel = { previewed = it },
+                    )
+                }
+                previewed?.let { channel ->
+                    ChannelPreview(
+                        channel = channel,
+                        programme = guide[channel.ref],
+                        health = health[channel.ref],
+                        isFavorite = channel.ref in favorites,
+                        isPlaying = channel.ref == current?.ref,
+                        modifier = Modifier.align(Alignment.Bottom).padding(24.dp),
+                    )
+                }
+            }
+        }
+
+        if (guideVisible) {
+            // The same timeline as the Guide section, over the video, which keeps playing.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0xEB0E1117))
+                    .padding(horizontal = TvSafeArea.Horizontal, vertical = TvSafeArea.Vertical),
+            ) {
+                TvGuideContent(
+                    onPlay = { channel, key ->
+                        vm.playFrom(key, channel)
+                        guideVisible = false
+                    },
+                )
+            }
         }
 
         menuFor?.let { channel ->
@@ -237,6 +303,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
                     Toast.makeText(context, context.getString(R.string.name_taken, name), Toast.LENGTH_SHORT).show()
                 },
                 extraItems = listOf(
+                    TvMenuItem(stringResource(R.string.player_open_guide)) { guideVisible = true },
                     TvMenuItem(stringResource(if (showQuality) R.string.quality_hide else R.string.quality_show), vm::toggleQuality),
                 ),
             )
@@ -327,52 +394,102 @@ private fun InfoBanner(channel: Channel, position: Int, total: Int, group: Strin
     }
 }
 
+/** What the highlighted channel in the browse panel is showing, before switching to it. */
 @Composable
-private fun ChannelListOverlay(
-    title: String,
-    channels: List<Channel>,
-    currentIndex: Int,
-    onSelect: (Int) -> Unit,
-    onLongPress: (Channel) -> Unit,
+private fun ChannelPreview(
+    channel: Channel,
+    programme: NowNext?,
+    health: HealthStatus?,
+    isFavorite: Boolean,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    val currentFocus = remember { FocusRequester() }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (currentIndex - 4).coerceAtLeast(0))
-    LaunchedEffect(Unit) { currentFocus.requestFocusWhenReady() }
-
+    val context = LocalContext.current
     Column(
-        Modifier
-            .width(480.dp)
-            .fillMaxHeight()
-            .background(Brush.horizontalGradient(listOf(Color(0xF20E1117), Color(0xD90E1117))))
-            .padding(start = 40.dp, end = 16.dp, top = 27.dp, bottom = 27.dp),
+        modifier
+            .fillMaxWidth()
+            .background(Color(0xE60E1117), RoundedCornerShape(16.dp))
+            .padding(24.dp),
     ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 12.dp, bottom = 12.dp),
-        )
-        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            itemsIndexed(channels, key = { _, it -> it.stableKey }) { i, channel ->
-                ListItem(
-                    selected = i == currentIndex,
-                    onClick = { onSelect(i) },
-                    onLongClick = { onLongPress(channel) },
-                    modifier = if (i == currentIndex) Modifier.focusRequester(currentFocus) else Modifier,
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    leadingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                channel.number.toString(),
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.width(48.dp),
-                            )
-                            ChannelLogo(channel.name, channel.logoUrl, size = 36.dp)
-                        }
-                    },
-                    headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChannelLogo(channel.name, channel.logoUrl, size = 56.dp)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${channel.number}  ${channel.name}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isPlaying) {
+                        Text(
+                            stringResource(R.string.preview_playing),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(end = 10.dp),
+                        )
+                    }
+                    HealthBadge(
+                        health,
+                        textStyle = MaterialTheme.typography.labelLarge,
+                        dotSize = 8.dp,
+                        showWorking = true,
+                        modifier = Modifier.padding(end = 10.dp),
+                    )
+                    if (isFavorite) {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = stringResource(R.string.label_favorite),
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+        }
+        val now = programme?.now
+        Spacer(Modifier.height(16.dp))
+        if (now == null) {
+            Text(
+                stringResource(R.string.guide_nothing_now),
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.6f),
+            )
+        } else {
+            Text(
+                "${context.formatTimeRange(now)}   ${now.title}",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(6.dp))
+            ProgramProgress(
+                fraction = programme.progress(System.currentTimeMillis()),
+                color = MaterialTheme.colorScheme.secondary,
+                track = Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            now.description?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            programme.next?.let { next ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    context.nextLine(next),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

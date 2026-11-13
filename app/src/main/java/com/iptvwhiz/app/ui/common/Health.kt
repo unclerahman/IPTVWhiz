@@ -50,8 +50,10 @@ fun HealthBadge(
     modifier: Modifier = Modifier,
     textStyle: TextStyle = MaterialTheme.typography.labelSmall,
     dotSize: Dp = 6.dp,
+    /** True where one channel is shown in detail (the player's preview card): "Working" is news there. */
+    showWorking: Boolean = false,
 ) {
-    if (status == null || status == HealthStatus.Working) return
+    if (status == null || (status == HealthStatus.Working && !showWorking)) return
     val (color, label) = status.colorAndLabel()
     Row(
         modifier

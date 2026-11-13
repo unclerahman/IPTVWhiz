@@ -1,31 +1,46 @@
 package com.iptvwhiz.app.ui.tv
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,44 +48,57 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
-import com.iptvwhiz.app.data.ref
+import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.db.ProgramSlot
 import com.iptvwhiz.app.data.epg.EpgRepository
 import com.iptvwhiz.app.data.epg.EpgWork
-import com.iptvwhiz.app.data.epg.NowNext
-import com.iptvwhiz.app.data.epg.slotAt
+import com.iptvwhiz.app.data.epg.GuideBlock
+import com.iptvwhiz.app.data.epg.GuideTimeline
+import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.ChannelLogo
 import com.iptvwhiz.app.ui.common.EmptyStateText
-import com.iptvwhiz.app.ui.common.ProgramProgress
+import com.iptvwhiz.app.ui.common.HealthBadge
 import com.iptvwhiz.app.ui.common.epgStatusMessage
-import com.iptvwhiz.app.ui.common.formatTimeRange
 import com.iptvwhiz.app.ui.common.formatTime
-import com.iptvwhiz.app.ui.common.nextLine
+import com.iptvwhiz.app.ui.common.formatTimeRange
+import com.iptvwhiz.app.ui.common.rememberNow
+import com.iptvwhiz.app.ui.common.requestFocusUntil
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
 import com.iptvwhiz.app.ui.state.EpgSettingsViewModel
 import com.iptvwhiz.app.ui.state.LiveViewModel
 import com.iptvwhiz.app.ui.state.appViewModel
+import com.iptvwhiz.app.ui.theme.Brand
 import com.iptvwhiz.app.ui.theme.TvSafeArea
+import kotlinx.coroutines.launch
 
-/** Guide section: every channel with a guide, what's on now and what's next — or at a picked hour. */
+/** Width of one minute in the timeline: half an hour is 180 dp, so about two hours fit on screen. */
+private val MinuteWidth = 6.dp
+private val ChannelCellWidth = 230.dp
+private val GuideRowHeight = 76.dp
+
+/**
+ * Guide section: a timeline, channels down the side and the next 12 hours across. Every row
+ * scrolls sideways together; ◀ ▶ move between programmes, ▲ ▼ between channels at about the same
+ * time. OK on a programme that's on now plays the channel; a later one shows its details.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
-    val context = LocalContext.current
     val organized by vm.organized.collectAsStateWithLifecycle()
     val guide by vm.guide.collectAsStateWithLifecycle()
     val schedule by vm.schedule.collectAsStateWithLifecycle()
+    val health by vm.health.collectAsStateWithLifecycle()
+    val favorites by vm.favorites.collectAsStateWithLifecycle()
     val channels = remember(organized, guide) {
         organized?.browse(OrganizedPlaylist.ALL).orEmpty().filter { guide[it.ref] != null }
     }
@@ -80,136 +108,243 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
         return
     }
 
-    // 0 = now; 1..12 = that many hours ahead.
-    var hourOffset by rememberSaveable { mutableIntStateOf(0) }
-    val now = remember(hourOffset) { System.currentTimeMillis() } // recompute point-in-time when the user jumps
+    val now by rememberNow()
+    val from = GuideTimeline.windowStart(now)
+    val until = from + GUIDE_HOURS * 3_600_000L
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val nowFocus = remember { FocusRequester() }
+    var details by remember { mutableStateOf<Pair<Channel, ProgramSlot>?>(null) }
+    val listState = rememberLazyListState()
+
+    var gridHasFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { nowFocus.requestFocusUntil({ gridHasFocus }) }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.guide_now_next_title), style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.size(24.dp))
-            TimeJumpRow(
-                selected = hourOffset,
-                onSelect = { hourOffset = it },
+            Spacer(Modifier.width(24.dp))
+            GuideChip(
+                label = stringResource(R.string.guide_back_to_now),
+                onClick = {
+                    scope.launch {
+                        scroll.animateScrollTo(0)
+                        listState.scrollToItem(0)
+                        nowFocus.requestFocusWhenReady()
+                    }
+                },
             )
         }
-        Spacer(Modifier.size(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(channels, key = { it.stableKey }) { channel ->
-                GuideChannelRow(channel, guide[channel.ref], schedule[channel.ref], hourOffset, onPlay)
+        Spacer(Modifier.height(12.dp))
+        Row {
+            Spacer(Modifier.width(ChannelCellWidth))
+            TimeRuler(from, until, now, Modifier.weight(1f).horizontalScroll(scroll))
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .focusRestorer { nowFocus }
+                .onFocusChanged { gridHasFocus = it.hasFocus },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
+                val blocks = remember(schedule[channel.ref], from, until) {
+                    GuideTimeline.blocks(schedule[channel.ref].orEmpty(), from, until)
+                }
+                Row(Modifier.height(GuideRowHeight), verticalAlignment = Alignment.CenterVertically) {
+                    GuideChannelCell(channel, health[channel.ref], channel.ref in favorites)
+                    Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll)) {
+                        Row(Modifier.fillMaxHeight()) {
+                            blocks.forEach { block ->
+                                val onAir = block.isOn(now)
+                                GuideBlockTile(
+                                    block = block,
+                                    now = now,
+                                    stickyShift = rememberStickyShift(block, from, scroll, 140.dp),
+                                    onClick = {
+                                        val slot = block.slot
+                                        if (onAir || slot == null) onPlay(channel, OrganizedPlaylist.ALL) else details = channel to slot
+                                    },
+                                    modifier = if (index == 0 && onAir) Modifier.focusRequester(nowFocus) else Modifier,
+                                )
+                            }
+                        }
+                        CurrentTimeLine(from, now)
+                    }
+                }
+            }
+        }
+    }
+
+    details?.let { (channel, slot) ->
+        val context = LocalContext.current
+        TvDialog(
+            title = slot.title,
+            message = "${channel.number}  ${channel.name} · ${context.formatTimeRange(slot)}",
+            onDismiss = { details = null },
+        ) {
+            slot.description?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodyLarge, maxLines = 8, overflow = TextOverflow.Ellipsis)
+            }
+            val watch = remember { FocusRequester() }
+            LaunchedEffect(Unit) { watch.requestFocusWhenReady() }
+            Button(
+                onClick = {
+                    details = null
+                    onPlay(channel, OrganizedPlaylist.ALL)
+                },
+                modifier = Modifier.focusRequester(watch),
+            ) { Text(stringResource(R.string.guide_watch_channel)) }
+        }
+    }
+}
+
+private const val GUIDE_HOURS = 12
+
+/**
+ * How far to push a block's title right so it stays readable while the start of a long programme
+ * is scrolled off the left edge. Read in the layout phase, so scrolling doesn't recompose the rows.
+ */
+@Composable
+private fun rememberStickyShift(block: GuideBlock, from: Long, scroll: ScrollState, minVisible: Dp): () -> Int {
+    val density = LocalDensity.current
+    val start = with(density) { (MinuteWidth * ((block.start - from) / 60_000f)).toPx() }
+    val room = with(density) { (MinuteWidth * block.minutes - minVisible).toPx() }.coerceAtLeast(0f)
+    return { (scroll.value - start).coerceIn(0f, room).toInt() }
+}
+
+/** Half-hour marks over the timeline. */
+@Composable
+private fun TimeRuler(from: Long, until: Long, now: Long, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Box(modifier.height(32.dp)) {
+        Box(Modifier.width(MinuteWidth * ((until - from) / 60_000f)).fillMaxHeight())
+        GuideTimeline.ticks(from, until).forEach { tick ->
+            Text(
+                context.formatTime(tick),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.offset(x = MinuteWidth * ((tick - from) / 60_000f) + 8.dp),
+            )
+        }
+        CurrentTimeLine(from, now)
+    }
+}
+
+/** The thin red line at the current time, drawn over each row. */
+@Composable
+private fun CurrentTimeLine(from: Long, now: Long) {
+    Box(
+        Modifier
+            .offset(x = MinuteWidth * ((now - from) / 60_000f))
+            .width(2.dp)
+            .fillMaxHeight()
+            .background(Brand.Error),
+    )
+}
+
+/** Number, logo, name, and the same status and favourite marks as Live TV. Not focusable: the programmes are. */
+@Composable
+private fun GuideChannelCell(channel: Channel, health: HealthStatus?, isFavorite: Boolean) {
+    Row(
+        Modifier.width(ChannelCellWidth).padding(end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            channel.number.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(40.dp),
+        )
+        ChannelLogo(channel.name, channel.logoUrl, size = 40.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(channel.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HealthBadge(health, textStyle = MaterialTheme.typography.labelSmall)
+                if (isFavorite) {
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = stringResource(R.string.label_favorite),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                    )
+                }
             }
         }
     }
 }
 
-/** Now · +1 h · … · +12 h: how far ahead the guide looks. */
+/** One programme (or gap) in the timeline. On-air programmes are lit; the part already shown is shaded. */
 @Composable
-private fun TimeJumpRow(selected: Int, onSelect: (Int) -> Unit) {
-    val firstFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { firstFocus.requestFocusWhenReady() }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
+private fun GuideBlockTile(
+    block: GuideBlock,
+    now: Long,
+    stickyShift: () -> Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val onAir = block.isOn(now)
+    val past = block.stop <= now
+    val width = MinuteWidth * block.minutes
+    Surface(
+        onClick = onClick,
+        modifier = modifier.width(width).fillMaxHeight().padding(end = 3.dp),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = when {
+                onAir -> Brand.IndigoDeep
+                block.slot == null || past -> Brand.DarkSurfaceContainerLow
+                else -> Brand.DarkSurface
+            },
+            contentColor = if (past) Brand.DarkOnSurfaceVariant else Brand.DarkOnSurface,
+            focusedContainerColor = Brand.FocusLight,
+            focusedContentColor = Brand.IndigoDeep,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
     ) {
-        (0..12).forEach { hour ->
-            val label = if (hour == 0) stringResource(R.string.guide_now)
-                else stringResource(R.string.guide_hours_ahead, hour)
-            TvTimeChip(
-                label = label,
-                selected = selected == hour,
-                onClick = { onSelect(hour) },
-                modifier = if (hour == 0) Modifier.focusRequester(firstFocus) else Modifier,
-            )
+        if (onAir) {
+            // Shade the part of the programme that has already been shown.
+            val shown = ((now - block.start).toFloat() / (block.stop - block.start)).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxHeight().fillMaxWidth(shown).background(Color.White.copy(alpha = 0.06f)))
+        }
+        if (width >= 48.dp) {
+            Column(Modifier.offset { IntOffset(stickyShift(), 0) }.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(
+                    block.slot?.title ?: stringResource(R.string.guide_nothing_now),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                block.slot?.let {
+                    Text(
+                        context.formatTimeRange(it),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = LocalContentColor.current.copy(alpha = 0.75f),
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }
 
-/** One focusable time chip; TV rows are ListItems, but a compact chip suits the time strip. */
+/** A small focusable pill for the guide header. */
 @Composable
-private fun TvTimeChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun GuideChip(label: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
-        modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(ChipShape),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) colors.primary else colors.surfaceVariant,
-            contentColor = if (selected) colors.onPrimary else colors.onSurfaceVariant,
+            containerColor = colors.surfaceVariant,
+            contentColor = colors.onSurfaceVariant,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
     ) {
         Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
     }
-}
-
-private val ChipShape = RoundedCornerShape(20.dp)
-
-/** One channel row: now/next at hour 0, the programme at that hour otherwise. */
-@Composable
-private fun GuideChannelRow(
-    channel: Channel,
-    programme: NowNext?,
-    slots: List<ProgramSlot>?,
-    hourOffset: Int,
-    onPlay: (Channel, String) -> Unit,
-) {
-    val context = LocalContext.current
-    ListItem(
-        selected = false,
-        onClick = { onPlay(channel, OrganizedPlaylist.ALL) },
-        scale = ListItemDefaults.scale(focusedScale = 1.01f),
-        leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 48.dp) },
-        overlineContent = {
-            Text("${channel.number}  ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
-        },
-        headlineContent = {
-            if (hourOffset == 0) {
-                Text(
-                    programme?.now?.let { "${context.formatTimeRange(it)}   ${it.title}" }
-                        ?: stringResource(R.string.guide_nothing_now),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            } else {
-                val at = System.currentTimeMillis() + hourOffset * 3_600_000L
-                val slot = slots?.slotAt(at)
-                Text(
-                    slot?.let { "${context.formatTimeRange(it)}   ${it.title}" }
-                        ?: stringResource(R.string.guide_nothing_now),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        supportingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (hourOffset == 0) {
-                    ProgramProgress(
-                        fraction = programme?.progress(System.currentTimeMillis()) ?: 0f,
-                        color = LocalContentColor.current,
-                        track = LocalContentColor.current.copy(alpha = 0.25f),
-                        modifier = Modifier.width(240.dp),
-                    )
-                    Spacer(Modifier.width(24.dp))
-                    Text(
-                        programme?.next?.let { context.nextLine(it) }.orEmpty(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                } else {
-                    // After the picked hour: the next thing after the slot covering it.
-                    val at = System.currentTimeMillis() + hourOffset * 3_600_000L
-                    val after = slots?.firstOrNull { it.start >= at }?.takeIf { it != slots.slotAt(at) }
-                    Text(
-                        after?.let { context.nextLine(it) }
-                            ?: stringResource(R.string.guide_nothing_now),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        },
-    )
 }
 
 /** Settings → TV guide: status, guide links and "update now". */
