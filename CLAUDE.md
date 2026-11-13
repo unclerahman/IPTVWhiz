@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (83 at 0.6.8)
+./gradlew testReleaseUnitTest      # JVM tests (90 at 0.7.0)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -82,7 +82,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.6.8)
+## Current status (0.7.0)
 
 | Milestone | Status |
 |---|---|
@@ -92,7 +92,9 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | M3 manage | ✅ Done |
 | M4 EPG basics | ✅ Done |
 | Backup | ✅ Done |
-| M5 polish | ◐ Search, watchlists, health, the viewing options (quality chip, hide blocked, phone full screen) and DRM playback are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+| M5 polish | ◐ Search, watchlists, health, the viewing options, DRM playback and the 0.7.0 UI/UX pass (browse while watching, timeline guide) are done. Still missing: Settings → Player and Appearance (hidden until built), store assets, release signing. |
+
+**0.7.0 (2026-11-13):** UI/UX pass, one commit per step (see PLAN §23 and CHANGELOG). One channel row look (heart + labelled status on TV too); browse while watching (TV: `TvLiveContent` reused as a 600 dp panel in the player + `ChannelPreview`; phone: `MobileBrowse` under the video and as a landscape panel; `PlayerViewModel.playFrom` switches the zapping list); scrollable timeline guide (`GuideTimeline` pure + tested, `TvGuideContent`, `MobileGuide.kt`, shared `ScrollState`, sticky titles, now line) replacing the +N h chips; guide from the player (phone tabs, TV quick menu); list order All → watchlists (heart) → groups on both; playlist rename + `PlaylistNames`; Check channels bar in Live TV; status explanations; TV key hint only 3 times. Fixed: TV Live TV crash "Release should only be called once" (also in 0.6.8; `key(listKey)` around the channel list), panel focus (row 0 always carries `firstChannelFocus`), TV Back extra press (player takes Back in `onPreviewKeyEvent`). Emulators: use `-gpu swiftshader_indirect` and one at a time while building (host GPU died during builds). 90 JVM tests.
 
 **0.6.8 (2026-11-13):** the guide's time jump. `EpgRepository` gains `slotAt()` (programme covering a time, JVM-tested) and `observeSchedule(playlistId, hours = 12)` (a flow of the next 12 h per channel, refreshed after each guide update rather than every minute — the minute-tick `nowNext` flow is untouched for Live TV rows). `LiveViewModel.schedule` merges playlists like `guide` does. Guide screens (TV: `TvGuideScreens.kt`, phone: `MobileHomeScreen.kt`) add a **Now · +1 h … +12 h** chip row (TV: focusable `ClickableSurface` chips in a horizontally scrollable row, brand colors; phone: `FilterChip`s in a `horizontalScroll` row); `hourOffset` is `rememberSaveable`. At hour 0 the rows are byte-for-byte the old now/next layout; at +N h the headline is the programme covering `now + N` and the second line is the next programme after it. Chips render with TV-safe colors because the TV theme has no mobile MaterialTheme. 83 JVM tests. Verified on both emulators with real and generated guides. See CHANGELOG and PLAN §22.
 
@@ -114,6 +116,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 
 ## Next steps (in rough priority)
 
+1. **Show the owner 0.7.0:** browsing while watching (TV: ◀ in the player), the timeline guide, Rename in Settings → Playlists. Ask whether the Guide button on their remote opens the guide (untestable on the emulator), and whether channel numbers should follow the shown order (they stay the provider's now).
 1. **Confirm 0.6.7 with the owner:** open Settings → Check for updates on their phone/TV (the first update will trigger Android's once-only "allow installs from IPTV Whiz" prompt). Future releases then appear in-app; publishing a release to GitHub is enough.
 2. **Ask the owner about the FAST channels on the real TV (reported 2026-11-05):** which channels fail, and the small line under the failure card (it names the DRM system and reason). The 0.6.6 fix was verified on the emulator; a real box may fail for a reason the emulator can't reproduce (genuinely encrypted channels with no usable key in the playlist, or a codec the box refuses). No answer received yet.
 3. **Confirm the guide's 12-hour view with the owner** (0.6.8): Guide → time chips.
@@ -125,8 +128,6 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 4. **Ask the owner about 0.6.6:** whether the FAST channels that showed "This channel is copy-protected…" play again, and whether TV3 SD still plays. The fix only changes what happens when the playlist's DRM line is unusable; no refresh or action should be needed. If a channel still fails, ask for the small line under the message (it names the DRM system and reason) and the channel name.
 5. **Ask the owner about 0.6.0:** whether the quality chip shows what they expect on real hardware (some boxes report no FPS) and whether hide-blocked should also apply to watchlists.
 6. **Seller-page channels (needs owner "go"):** for channels whose link opens a provider's web page (e.g. "astro arena bola"), show an honest explanation instead of a generic error — no paywall bypass, ever.
-7. **"Check channels" in Live TV:** add it to the group long-press menu. The owner expected it there; it was offered but not built yet.
-8. **TV player Back:** on the error card, Back sometimes needs an extra press.
 9. **Settings:**
    - Player: buffer size, decoder preference, aspect ratio, inverse channel keys.
    - Appearance: theme, text size.

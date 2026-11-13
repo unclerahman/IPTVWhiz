@@ -31,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -76,7 +78,8 @@ fun TextEntryDialog(
     hint: String? = null,
     saveLabel: String = stringResource(R.string.save),
 ) {
-    var text by remember { mutableStateOf(initial) }
+    // The old text starts selected, so typing replaces it and a tap places the cursor.
+    var text by remember { mutableStateOf(TextFieldValue(initial, selection = TextRange(0, initial.length))) }
     val focus = remember { FocusRequester() }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -92,7 +95,7 @@ fun TextEntryDialog(
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
         },
-        confirmButton = { TextButton(onClick = { onDismiss(); onSave(text) }) { Text(saveLabel) } },
+        confirmButton = { TextButton(onClick = { onDismiss(); onSave(text.text) }) { Text(saveLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

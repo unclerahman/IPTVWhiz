@@ -3,6 +3,43 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.7.0 (2026-11-13)
+
+A UI/UX pass on phone and TV: one consistent look for channels, browsing while watching, and a real timeline guide.
+
+**New**
+- **Browse while watching.** The channel list inside the player now shows the same things as Live TV — what's on now with a progress bar, Offline/Blocked, the favourite heart — and you can switch to any group or watchlist without stopping the video.
+  - **TV:** ◀ (or OK) opens groups on the left and channels beside them over the video. Moving over a channel shows a card with what's on, what's next and its status before you switch. OK plays it; ▲▼ then zap through that list.
+  - **Phone:** group chips and full channel rows under the video; in full screen a list button opens the same panel beside the video.
+- **Scrollable timeline guide** (replaces the +1 h…+12 h chips). Channels down the side, the next 12 hours across, every row scrolling together, a red line at the current time, and titles that stay readable when a long programme started earlier. What's on now is highlighted; tap/OK plays it, a later programme opens its details with **Watch channel**. **Back to now** jumps back.
+- **Guide from the player.** Phone: **Channels | Guide** tabs under the video. TV: **TV guide** in the player's menu (hold OK or Menu); it opens on the channel you're watching.
+- **Rename playlists** (Settings → Playlists). New playlists added from a bare address (like `10.0.2.2`) are called "My playlist" instead.
+- **Check channels in Live TV**, above the channel list, like Watchlists and Manage already had.
+- Offline and Blocked are explained in a sentence where you see one channel in detail (TV preview card, phone player).
+
+**Changed**
+- One channel row everywhere: the favourite mark is a heart on TV too (it was a star), and TV shows the "Offline"/"Blocked" label instead of a bare dot.
+- Same list order on phone and TV: **All channels**, your watchlists (with a heart), then the provider's groups.
+- Settings no longer lists Player and Appearance until they do something, and the TV welcome no longer offers "Set up from phone" (both only said "coming soon").
+- The TV key hint under the channel banner shows the first 3 times the player opens.
+
+**Fixed**
+- **TV crash in Live TV:** moving between groups and pressing ▶ into the channel list could close the app ("Release should only be called once"). This was already in 0.6.8.
+- **TV Back needed an extra press** on the error card and in the channel panel; one press now closes the panel, the guide or the player.
+- A rename made while the playlist was refreshing is no longer undone by the refresh.
+- Rename boxes on the phone start with the old name selected, so typing replaces it instead of mixing with it.
+
+**Notes**
+- Channel numbers stay the provider's, so a number always means the same channel (number entry, watchlists and search depend on that); after sorting a group A–Z they no longer run in order, which is expected.
+- No database changes. Database stays at v5, parser version stays 2.
+
+**Tests:** 90 JVM tests (5 new for the timeline layout, 2 for playlist names).
+
+**Verified on the emulators (2026-11-13):**
+- TV (Free-TV playlist, 2,032 channels, real guide): channel panel opens on the playing channel with its preview; switching to Favorites/Argentina/Albania News and zapping; Back closes in one press; the crash sequence (groups → ▶) no longer crashes on 0.7.0 and does on 0.6.8; timeline guide with real programmes, sticky titles, details dialog, guide from the player menu; rename "raw.githubusercontent.com" → "World TV"; Check channels bar; Settings without the Soon rows.
+- Phone (local test playlist with a generated guide): channel chips and rows under the video, Channels | Guide tabs, full-screen panel, timeline guide swipe, sticky titles and details sheet.
+- The remote's dedicated Guide key is wired but could not be tested: the TV emulator keeps that key for the system.
+
 ## 0.6.8 (2026-11-13)
 
 **New**

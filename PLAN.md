@@ -576,3 +576,32 @@ https://server/stream.mpd
 
 **Test asset:** `testdata/guide-test.m3u` + `guide-test.xml` (generated around "now" by the flow above; regenerate with two-hour programmes if stale — see the generator script pattern in this session's notes). Verified on the TV emulator with the Free-TV playlist (real guide) and on the phone emulator with the generated guide: +3 h and +12 h show the right programmes, "Now" is unchanged.
 
+## 23. UI/UX pass: browse while watching, timeline guide (0.7.0, 2026-11-13)
+
+**Why:** the owner found the app inconsistent: the list inside the player showed only names (no guide, no status), you could not leave the current group while watching, and the +1 h…+12 h chips were clumsy. They asked for a full UI/UX review and then for all of it, committed step by step.
+
+**What was built**
+
+- **One channel row.** Phone: `MobileChannelRow` (`MobileHomeScreen.kt`, used by Live TV, watchlists, search and the player). TV: `ChannelRow` in `TvLiveContent.kt` gained `selected`; favourite is a heart, status uses `HealthBadge` (labelled) instead of `HealthDot`.
+- **Browse while watching.** The player screens create a second `LiveViewModel` (same ViewModelStore, so `TvLiveContent`/`MobileBrowse` share it) and reuse the Live TV browsers:
+  - `TvLiveContent(groupWidth, showHealthCheck, current, queue, onFocusChannel)`; the player shows it in a 600 dp panel plus `ChannelPreview` (now/next, description, status, explanation).
+  - `MobileBrowse(current, queue, showHealthCheck)` under the video; in landscape the same in a 400 dp panel (list button in the player's top bar).
+  - `PlayerViewModel.playFrom(key, channel)` switches the zapping list (group, watchlist, All or `QUEUE_KEY` for search results); `listKey` tells the browser where to start. `LiveViewModel` no longer resets to All channels on the first playlist emission (only on a real playlist change), so the player's starting list sticks.
+- **Timeline guide.** `data/epg/GuideTimeline.kt` (pure, JVM-tested): `windowStart` (half hour before now), `ticks`, `blocks` (clip to window, fill gaps, trim overlaps, absorb gaps under a minute). UI: `TvGuideContent` (6 dp/min, focusable blocks, D-pad bring-into-view scrolls the shared `ScrollState`) and `MobileGuide.kt` (4 dp/min, swipe). Every row uses one `ScrollState`; `rememberStickyShift` keeps titles at the left edge, read in the layout phase. `rememberNow()` ticks each minute. Details: `TvDialog` / `ModalBottomSheet` with Watch channel.
+- **Guide in the player:** phone `PrimaryTabRow` (Channels | Guide); TV quick-menu item and `Key.Guide`, overlay with `TvGuideContent(current = …)`.
+- **Consistency:** list order All → watchlists (heart) → groups on both; dead `TopLevel.emptyState()` and unused strings removed; Player/Appearance Settings rows and the TV "Set up from phone" card hidden until built.
+- **Playlists:** `PlaylistRepository.rename`, `PlaylistNames` (bare addresses → "My playlist", numbered when taken); refresh re-reads the row before saving.
+- **Small fixes:** Check channels bar in Live TV; `healthExplanation()`; TV key hint only for the first 3 player sessions (`AppPrefs.takePlayerHint`).
+
+**TV focus lessons (worth remembering)**
+
+- `focusRestorer { requester }` throws "FocusRequester is not initialized" if that requester has no attached row. When the last-played channel was row 0, row 0 carried only the last-played requester; now row 0 always carries `firstChannelFocus` too.
+- Reusing one channel `LazyColumn` across groups crashed ("Release should only be called once") when ▶ went back into the list after moving through groups. `key(listKey)` gives each group a fresh list. The crash was in 0.6.8 too.
+- Compose spends Back on moving focus out of a focus group before `BackHandler` runs, so the player takes Back in `onPreviewKeyEvent` on its root and decides itself (panel → guide → leave). This was the "Back needs an extra press" bug.
+- A focus request during an `AnimatedVisibility` slide can be ignored; `requestFocusUntil(hasFocus)` (Focus.kt) retries for about a second.
+
+**What was left out**
+
+- Channel numbers stay the provider's (renumbering would break number entry, watchlists and search). A setting for sequential numbers could come later.
+- The guide shows 12 hours ahead and no past (no catch-up).
+- Emulator note: with `-gpu host` the emulators died during Gradle builds on this PC (old AMD GPU); `-gpu swiftshader_indirect` is slower but stable, and run one emulator at a time while building.
