@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -25,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,7 +34,6 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.ui.common.requestFocusWhenReady
-import com.iptvwhiz.app.ui.common.showComingSoon
 import com.iptvwhiz.app.ui.theme.TvSafeArea
 
 /**
@@ -50,7 +47,6 @@ fun TvWelcomeScreen(
     onAddXtream: () -> Unit,
     onSecondary: () -> Unit,
 ) {
-    val context = LocalContext.current
     val firstCard = remember { FocusRequester() }
     LaunchedEffect(Unit) { firstCard.requestFocusWhenReady() }
 
@@ -91,13 +87,7 @@ fun TvWelcomeScreen(
                 description = R.string.add_xtream_desc,
                 onClick = onAddXtream,
             )
-            // TODO(M5): local web page + QR code for typing on the phone (PLAN.md §9).
-            ProviderCard(
-                icon = Icons.Filled.Phone,
-                title = R.string.add_phone_title,
-                description = R.string.add_phone_desc,
-                onClick = { context.showComingSoon() },
-            )
+            // TODO(M6): "Set up from phone" (local web page + QR code, PLAN.md §9) goes here once it works.
         }
         Spacer(Modifier.height(32.dp))
         OutlinedButton(onClick = onSecondary) {

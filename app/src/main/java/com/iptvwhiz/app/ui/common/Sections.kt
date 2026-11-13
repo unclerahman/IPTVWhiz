@@ -8,14 +8,11 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.Watchlist
 import com.iptvwhiz.app.R
 import com.iptvwhiz.app.ui.Routes
@@ -74,18 +71,8 @@ val settingsEntries = listOf(
         icon = Icons.Filled.CheckCircle,
         section = SettingsSection.Playback,
     ),
-    SettingsEntry(
-        R.string.settings_player,
-        R.string.settings_player_desc,
-        icon = Icons.Filled.PlayArrow,
-        section = SettingsSection.Playback,
-    ),
-    SettingsEntry(
-        R.string.settings_appearance,
-        R.string.settings_appearance_desc,
-        icon = Icons.Filled.Star,
-        section = SettingsSection.Playback,
-    ),
+    // Player (buffer, decoder, aspect ratio) and Appearance (theme, text size) come back here once
+    // they do something; a "Soon" row that only shows a toast is a dead end for the owner.
     SettingsEntry(
         R.string.settings_backup,
         R.string.settings_backup_desc,
@@ -116,14 +103,6 @@ fun isValidUrl(text: String): Boolean {
 }
 
 val NoWatchlistsText = EmptyStateText(R.string.empty_favorites_title, R.string.empty_favorites_message)
-
-/** Label for a browse key: "All channels", Favorites, or a group's or watchlist's name. */
-@Composable
-fun groupLabel(key: String, displayName: String?): String = when {
-    key == OrganizedPlaylist.ALL -> stringResource(R.string.all_channels)
-    displayName == null && OrganizedPlaylist.watchlistId(key) != null -> stringResource(R.string.watchlist_favorites)
-    else -> displayName ?: key
-}
 
 /** A watchlist's name; the built-in Favorites list follows the device language. */
 @Composable

@@ -106,11 +106,13 @@ class PlaylistRepository(
             fetched.channels.chunked(BATCH).forEach { batch ->
                 db.channels().insertAll(batch.map { it.copy(playlistId = playlistId) })
             }
+            // Read again: the download can take a while, and a rename made meanwhile must survive.
+            val latest = db.playlists().get(playlistId) ?: playlist
             db.playlists().update(
-                playlist.copy(
+                latest.copy(
                     channelCount = fetched.channels.size,
                     lastRefreshed = System.currentTimeMillis(),
-                    epgUrl = refreshedEpgUrl(playlist.epgUrl, fetched.epgUrl),
+                    epgUrl = refreshedEpgUrl(latest.epgUrl, fetched.epgUrl),
                 ),
             )
         }
@@ -137,11 +139,21 @@ class PlaylistRepository(
         if (prefs.activePlaylistId.value == playlistId) prefs.setActivePlaylist(AppPrefs.NONE)
     }
 
-    /** A readable default name for a new playlist. */
-    fun suggestName(source: PlaylistSource): String = when (source) {
-        is PlaylistSource.M3uUrl -> source.url.toHostName() ?: "My playlist"
-        is PlaylistSource.M3uFile -> displayName(source.uri)?.substringBeforeLast('.') ?: "My playlist"
-        is PlaylistSource.Xtream -> source.credentials.server.toHostName() ?: "My provider"
+    /** A readable default name for a new playlist, numbered when another playlist already has it. */
+    suspend fun suggestName(source: PlaylistSource): String {
+        val base = when (source) {
+            is PlaylistSource.M3uUrl -> PlaylistNames.fromHost(source.url.toHostName())
+            is PlaylistSource.M3uFile -> displayName(source.uri)?.substringBeforeLast('.')
+            is PlaylistSource.Xtream -> PlaylistNames.fromHost(source.credentials.server.toHostName())
+        } ?: PlaylistNames.DEFAULT
+        return PlaylistNames.unique(base, db.playlists().getAll().map { it.name })
+    }
+
+    /** Gives a playlist the owner's own name; a blank name changes nothing. */
+    suspend fun rename(playlistId: Long, name: String) {
+        val trimmed = name.trim().takeIf { it.isNotEmpty() } ?: return
+        val playlist = db.playlists().get(playlistId) ?: return
+        db.playlists().update(playlist.copy(name = trimmed))
     }
 
     private class Fetched(val channels: List<ChannelEntity>, val epgUrl: String?)

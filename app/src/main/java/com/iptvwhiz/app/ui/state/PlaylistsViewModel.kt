@@ -58,6 +58,10 @@ class PlaylistsViewModel(container: AppContainer) : ViewModel() {
         }
     }
 
+    fun rename(playlist: PlaylistEntity, name: String) {
+        viewModelScope.launch { repo.rename(playlist.id, name) }
+    }
+
     fun delete(playlist: PlaylistEntity) {
         viewModelScope.launch {
             repo.delete(playlist.id)

@@ -57,6 +57,7 @@ fun TvPlaylistsScreen(onAddPlaylist: () -> Unit) {
 
     var actionsFor by remember { mutableStateOf<PlaylistEntity?>(null) }
     var confirmDelete by remember { mutableStateOf<PlaylistEntity?>(null) }
+    var renaming by remember { mutableStateOf<PlaylistEntity?>(null) }
     val firstFocus = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -144,11 +145,26 @@ fun TvPlaylistsScreen(onAddPlaylist: () -> Unit) {
                     .then(if (playlist.id == activeId) Modifier.focusRequester(firstAction) else Modifier),
             ) { Text(stringResource(R.string.playlist_refresh)) }
             OutlinedButton(
+                onClick = { renaming = playlist; actionsFor = null },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.playlist_rename)) }
+            OutlinedButton(
                 onClick = { confirmDelete = playlist; actionsFor = null },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.playlist_delete)) }
         }
         LaunchedEffect(playlist.id) { firstAction.requestFocusWhenReady() }
+    }
+
+    renaming?.let { playlist ->
+        TvTextEntryDialog(
+            title = stringResource(R.string.playlist_rename),
+            label = stringResource(R.string.field_playlist_name),
+            initial = playlist.name,
+            hint = stringResource(R.string.playlist_rename_hint),
+            onDismiss = { renaming = null },
+            onSave = { vm.rename(playlist, it) },
+        )
     }
 
     confirmDelete?.let { playlist ->

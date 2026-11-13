@@ -58,6 +58,7 @@ fun MobilePlaylistsScreen(onAddPlaylist: () -> Unit, onBack: () -> Unit) {
     val activeId by vm.activeId.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf<PlaylistEntity?>(null) }
+    var renaming by remember { mutableStateOf<PlaylistEntity?>(null) }
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -142,6 +143,10 @@ fun MobilePlaylistsScreen(onAddPlaylist: () -> Unit, onBack: () -> Unit) {
                                         onClick = { vm.refresh(playlist); menuOpen = false },
                                     )
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.playlist_rename)) },
+                                        onClick = { renaming = playlist; menuOpen = false },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.playlist_delete)) },
                                         onClick = { confirmDelete = playlist; menuOpen = false },
                                     )
@@ -154,6 +159,17 @@ fun MobilePlaylistsScreen(onAddPlaylist: () -> Unit, onBack: () -> Unit) {
                 HorizontalDivider()
             }
         }
+    }
+
+    renaming?.let { playlist ->
+        TextEntryDialog(
+            title = stringResource(R.string.playlist_rename),
+            label = stringResource(R.string.field_playlist_name),
+            initial = playlist.name,
+            hint = stringResource(R.string.playlist_rename_hint),
+            onDismiss = { renaming = null },
+            onSave = { vm.rename(playlist, it) },
+        )
     }
 
     confirmDelete?.let { playlist ->
