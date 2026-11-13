@@ -552,3 +552,27 @@ https://server/stream.mpd
 
 **Tests:** 4 new JVM tests in `UpdateCheckerTest` (asset pick, no-APK release, malformed JSON, version ordering incl. pre-release tags). Verified live on both emulators: the up-to-date path against the real repo, and — with the version faked to 0.6.0 on the TV emulator — Available with real release notes, a real download, and Android's installer prompt.
 
+---
+
+## 22. Guide time jump: 12 hours ahead (0.6.8, 2026-11-13)
+
+**Why:** the guide only ever said what's on now and next. The owner asked to see up to 12 hours ahead. The database already keeps 3 days of programmes and `nowNext` already queries 12 h ahead — only the screen never showed it.
+
+**What was built**
+
+- `data/epg/EpgRepository.kt`:
+  - `slotAt(at)` on `List<ProgramSlot>`: the programme covering a time (started at or before it, not yet ended), null in gaps or outside the data. JVM-tested in `EpgTest`.
+  - `observeSchedule(playlistId, hours = 12)`: a `Flow<Map<stableKey, List<ProgramSlot>>>` for the guide screen, refreshed after each guide update (the observed status bumps and restarts the flow) with an hourly safety re-emit — not on the minute tick, so the heavy full-schedule query stays out of the every-minute `nowNext` path. The one-shot `schedule()` stays.
+- `ui/state/LiveViewModel.kt`: `schedule` StateFlow, merging playlists with `ChannelRef` keys like `guide` (watchlists that span playlists get data from all of them).
+- Guide screens (TV `TvGuideScreens.kt`, phone `MobileHomeScreen.kt`): a chip row **Now · +1 h … +12 h** (13 chips; TV's row scrolls horizontally so +10–+12 are reachable, and chips are focusable `ClickableSurface`s because TV rows are normally ListItems). `hourOffset` is `rememberSaveable`, so leaving and returning to the guide keeps the picked hour.
+  - Hour 0: exactly the old now/next row (title with time range, progress bar, "Next …" line) — a regression-free fallback.
+  - +N h: the headline is the programme covering `now + N` ("7:00 AM–9:00 AM · Afternoon Movie"), and the second line is the next programme after it ("Next 9:00 AM · Evening News"). No progress bar in the future (it would always be 0). Channels with no data at that hour show "No information".
+- Strings: `guide_now_next_title` became "TV guide"; new `guide_now`, `guide_hours_ahead`.
+
+**What limits it**
+
+- The picked hour is a point-in-time view, not a scrollable timeline: each jump shows the programme covering that hour for every channel. The data for a true grid (12 columns) is already in the DB if the owner wants that later.
+- Data ends where the provider's XMLTV ends; the guide updates once a day, so late in the day the 12th hour can fall past the data and show "No information".
+
+**Test asset:** `testdata/guide-test.m3u` + `guide-test.xml` (generated around "now" by the flow above; regenerate with two-hour programmes if stale — see the generator script pattern in this session's notes). Verified on the TV emulator with the Free-TV playlist (real guide) and on the phone emulator with the generated guide: +3 h and +12 h show the right programmes, "Now" is unchanged.
+

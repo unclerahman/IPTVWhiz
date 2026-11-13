@@ -226,11 +226,13 @@
 
     <!-- TV guide -->
     <string name="guide_next">Next %1$s · %2$s</string>
-    <string name="guide_now_next_title">Now &amp; next</string>
+    <string name="guide_now_next_title">TV guide</string>
+    <string name="guide_now">Now</string>
+    <string name="guide_hours_ahead">+%1$d h</string>
     <string name="guide_empty_title">No TV guide yet</string>
     <string name="guide_empty_message">The guide loads in the background after a playlist is added. You can check it or add a guide link in Settings → TV guide.</string>
     <string name="guide_nothing_now">No information</string>
-    <string name="guide_settings_intro">The TV guide shows what\'s on now and next. It updates by itself once a day.</string>
+    <string name="guide_settings_intro">The TV guide shows what\'s on now and next, and up to 12 hours ahead. It updates by itself once a day.</string>
     <string name="guide_links">Guide links (XMLTV)</string>
     <string name="guide_links_hint">One or more links, separated by commas</string>
     <string name="guide_update_now">Update guide now</string>

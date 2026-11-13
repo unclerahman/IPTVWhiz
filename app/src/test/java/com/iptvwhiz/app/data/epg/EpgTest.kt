@@ -2,6 +2,7 @@ package com.iptvwhiz.app.data.epg
 
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.ProgramSlot
+import com.iptvwhiz.app.data.epg.slotAt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -102,6 +103,22 @@ class EpgTest {
         assertNull(result.getValue("b").now)
         assertEquals("Starts soon", result.getValue("b").next?.title)
         assertEquals(5f / 7f, result.getValue("a").progress(now), 0.001f)
+    }
+
+    @Test
+    fun `slotAt picks the programme covering a later hour`() {
+        val slots = listOf(
+            ProgramSlot("a", 5_000, 12_000, "Current", null),
+            ProgramSlot("a", 12_000, 15_000, "Following", null),
+            ProgramSlot("a", 15_000, 18_000, "Later", null),
+        )
+        assertEquals("Current", slots.slotAt(6_000)?.title)
+        assertEquals("Following", slots.slotAt(13_000)?.title)
+        assertEquals("Later", slots.slotAt(17_999)?.title)
+        // Outside the list, or in a gap: nothing.
+        assertNull(slots.slotAt(3_000))
+        assertNull(slots.slotAt(20_000))
+        assertNull(emptyList<ProgramSlot>().slotAt(6_000))
     }
 
     @Test

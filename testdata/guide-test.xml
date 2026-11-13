@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="bipbop.test"><display-name>Apple BipBop</display-name></channel>
+  <programme start="20261113030000 +0000" stop="20261113050000 +0000" channel="bipbop.test"><title>Early Show</title></programme>
+  <programme start="20261113050000 +0000" stop="20261113070000 +0000" channel="bipbop.test"><title>Morning Show</title></programme>
+  <programme start="20261113070000 +0000" stop="20261113090000 +0000" channel="bipbop.test"><title>Afternoon Movie</title></programme>
+  <programme start="20261113090000 +0000" stop="20261113110000 +0000" channel="bipbop.test"><title>Evening News</title></programme>
+  <programme start="20261113110000 +0000" stop="20261113130000 +0000" channel="bipbop.test"><title>Prime Time Drama</title></programme>
+  <programme start="20261113130000 +0000" stop="20261113150000 +0000" channel="bipbop.test"><title>Late Night</title></programme>
+  <programme start="20261113150000 +0000" stop="20261113170000 +0000" channel="bipbop.test"><title>Closedown</title></programme>
+  <programme start="20261113170000 +0000" stop="20261113190000 +0000" channel="bipbop.test"><title>Late Replay</title></programme>
+  <programme start="20261113190000 +0000" stop="20261113210000 +0000" channel="bipbop.test"><title>Breakfast Recap</title></programme>
+  <programme start="20261113210000 +0000" stop="20261113230000 +0000" channel="bipbop.test"><title>Weekend Special</title></programme>
+  <programme start="20261113230000 +0000" stop="20261114010000 +0000" channel="bipbop.test"><title>Documentary</title></programme>
+  <programme start="20261114010000 +0000" stop="20261114030000 +0000" channel="bipbop.test"><title>Sports Highlights</title></programme>
+</tv>

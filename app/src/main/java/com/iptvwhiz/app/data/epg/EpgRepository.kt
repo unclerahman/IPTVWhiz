@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -31,6 +32,13 @@ import java.util.zip.GZIPInputStream
 data class NowNext(val now: ProgramSlot?, val next: ProgramSlot?) {
     /** 0..1 through the current programme. */
     fun progress(at: Long): Float = now?.let { ((at - it.start).toFloat() / (it.stop - it.start)).coerceIn(0f, 1f) } ?: 0f
+}
+
+/** The programme covering [at] (the one that started last at or before it), or null. */
+fun List<ProgramSlot>.slotAt(at: Long): ProgramSlot? {
+    var best: ProgramSlot? = null
+    for (slot in this) if (slot.start <= at && (best == null || slot.start > best!!.start)) best = slot
+    return best?.takeIf { at < it.stop }
 }
 
 /** Downloads XMLTV guides, keeps what matches the playlist, and answers "what's on". */
@@ -126,7 +134,27 @@ class EpgRepository(private val db: AppDatabase, private val http: OkHttpClient)
             }
         }.flowOn(Dispatchers.IO)
 
-    /** Whole programme list for the next hours, for the guide. */
+    /**
+     * The next [hours] of programmes per channel, refreshed after each guide update (not every
+     * minute: the data only changes when the guide itself changes). For the scrollable guide.
+     */
+    fun observeSchedule(playlistId: Long, hours: Int = 12): Flow<Map<String, List<ProgramSlot>>> =
+        dao.observeStatus(playlistId).flatMapLatest { status ->
+            if (status == null || status.programmes == 0) {
+                flowOf(emptyMap())
+            } else {
+                flow {
+                    while (true) {
+                        val now = System.currentTimeMillis()
+                        emit(dao.programs(playlistId, now, now + hours * 3_600_000L).groupBy { it.stableKey })
+                        // The next guide update rewrites the table and bumps the status, which restarts this flow.
+                        delay(60 * 60_000L)
+                    }
+                }
+            }
+        }.flowOn(Dispatchers.IO)
+
+    /** Whole programme list for the next hours, one-shot. */
     suspend fun schedule(playlistId: Long, hours: Int): Map<String, List<ProgramSlot>> {
         val now = System.currentTimeMillis()
         return dao.programs(playlistId, now, now + hours * 3_600_000L).groupBy { it.stableKey }

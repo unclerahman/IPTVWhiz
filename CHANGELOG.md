@@ -3,6 +3,21 @@
 All versions so far are sideloaded APKs (`dist/IPTVWhiz-<version>.apk`, not in git), signed with the debug key.
 Dates are build dates. The milestone numbers (M0–M6) refer to the roadmap in [PLAN.md](PLAN.md) §13.
 
+## 0.6.8 (2026-11-13)
+
+**New**
+- **The TV guide can look 12 hours ahead.** The Guide screen (phone and TV) has a row of time chips — **Now · +1 h · +2 h · … · +12 h**. Picking one shows every channel's programme at that hour, with the next thing after it on the second line. "Now" looks exactly as before: what's on now, and what's next. The guide itself still downloads once a day; the app simply also keeps the next 12 hours, which it already stored.
+
+**Notes**
+- Guide data is capped by what the provider's XMLTV file contains; a channel with no data at a picked hour shows "No information".
+- No database changes. Database stays at v5, parser version stays 2.
+
+**Tests:** 83 JVM tests (1 new for picking the programme at a later hour).
+
+**Verified on the emulators (2026-11-13):**
+- TV (Free-TV playlist, 2,032 channels, real guide): +3 h showed "8:00 AM–11:00 AM · La première chaîne généraliste…" with "Next 11:00 AM · …" under it; +12 h showed the real evening programmes; Now unchanged.
+- Phone (a local test playlist with a generated XMLTV guide): +3 h and +12 h showed the expected programmes; the chip row scrolls horizontally to reach +12 h; switching tabs and returning keeps the picked hour.
+
 ## 0.6.7 (2026-10-31)
 
 **New**

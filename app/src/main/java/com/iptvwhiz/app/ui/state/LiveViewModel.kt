@@ -11,6 +11,7 @@ import com.iptvwhiz.app.data.blockedRefs
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.db.PlaylistEntity
+import com.iptvwhiz.app.data.db.ProgramSlot
 import com.iptvwhiz.app.data.epg.NowNext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -91,6 +92,21 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
         .map { list -> list.map { it.id } }
         .distinctUntilChanged()
         .flatMapLatest { ids -> mergedGuide(container, ids) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** The next 12 hours of programmes per channel, for the guide's time jump. */
+    val schedule: StateFlow<Map<ChannelRef, List<ProgramSlot>>> = repo.playlists
+        .map { list -> list.map { it.id } }
+        .distinctUntilChanged()
+        .flatMapLatest { ids ->
+            val flows = ids.map { id ->
+                container.epg.observeSchedule(id).map { m -> m.mapKeys { (key, _) -> ChannelRef(id, key) } }
+            }
+            if (flows.isEmpty()) flowOf(emptyMap()) else combine(flows) { maps ->
+                maps.fold(emptyMap<ChannelRef, List<ProgramSlot>>()) { acc, m -> acc + m }
+            }
+        }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {

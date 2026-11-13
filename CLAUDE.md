@@ -24,7 +24,7 @@ Read these first:
 ```bash
 export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (R8 on, signed with debug key)
-./gradlew testReleaseUnitTest      # JVM tests (82 at 0.6.7)
+./gradlew testReleaseUnitTest      # JVM tests (83 at 0.6.8)
 ```
 
 - **Toolchain:** `F:\Android` (jdk17, sdk with platform 35, gradle 8.11.1). minSdk 24, targetSdk 35.
@@ -82,7 +82,7 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 - **Android TV has no real document picker**, only a stub. `hasDocumentPicker()` filters it out (a `<queries>` element is in the manifest).
 - **Writing style for UI text and docs:** plain, short, friendly. The owner is non-technical, so describe things in user terms.
 
-## Current status (0.6.7)
+## Current status (0.6.8)
 
 | Milestone | Status |
 |---|---|
@@ -93,6 +93,8 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 | M4 EPG basics | ✅ Done |
 | Backup | ✅ Done |
 | M5 polish | ◐ Search, watchlists, health, the viewing options (quality chip, hide blocked, phone full screen) and DRM playback are done. Still missing: Settings → Player and Appearance (still "coming soon"), store assets, release signing. |
+
+**0.6.8 (2026-11-13):** the guide's time jump. `EpgRepository` gains `slotAt()` (programme covering a time, JVM-tested) and `observeSchedule(playlistId, hours = 12)` (a flow of the next 12 h per channel, refreshed after each guide update rather than every minute — the minute-tick `nowNext` flow is untouched for Live TV rows). `LiveViewModel.schedule` merges playlists like `guide` does. Guide screens (TV: `TvGuideScreens.kt`, phone: `MobileHomeScreen.kt`) add a **Now · +1 h … +12 h** chip row (TV: focusable `ClickableSurface` chips in a horizontally scrollable row, brand colors; phone: `FilterChip`s in a `horizontalScroll` row); `hourOffset` is `rememberSaveable`. At hour 0 the rows are byte-for-byte the old now/next layout; at +N h the headline is the programme covering `now + N` and the second line is the next programme after it. Chips render with TV-safe colors because the TV theme has no mobile MaterialTheme. 83 JVM tests. Verified on both emulators with real and generated guides. See CHANGELOG and PLAN §22.
 
 **0.6.7 (2026-10-31):** in-app updates. `data/update/UpdateChecker.kt` parses `https://api.github.com/repos/unclerahman/IPTVWhiz/releases/latest` (tag → version, first `.apk` asset, notes) and compares versions numerically, stopping at the first non-numeric part so `0.6.6-beta.1` never reads as newer than `0.6.6`. `ui/state/UpdateViewModel.kt` is the state machine (Idle/Checking/UpToDate/Available/Downloading/Installing/AwaitingInstall/Failed — `Failed(fromDownload=true)` is a download failure, otherwise a check failure); the APK streams into `cacheDir/update.apk` and is handed to the system installer via `FileProvider` authority `${applicationId}.updates` (`res/xml/update_paths.xml`) with `ACTION_VIEW` + `application/vnd.android.package-archive`; `REQUEST_INSTALL_PACKAGES` is in the manifest (Android's "allow installs from this source" prompt appears once). `ui/common/UpdateScreen.kt` is the shared body: TV passes `Brand` colors plus a `textColor` (mobile MaterialTheme has no colors under the TV theme, so default text is invisible dark-on-dark — caught on the emulator) and D-pad focus tracking; phone wraps it in `Scaffold` + `BackTopBar`. Settings entry lives in `Sections.kt` (App & data section), route `Routes.UPDATE` wired in both `TvApp`/`MobileApp`. **The repo is now public** (owner approved; history scanned for secrets/playlist first — clean), because the anonymous releases API 404s on a private repo. Quiet check on open: a failed check returns to Idle with a manual button; failures never block anything else. 82 JVM tests (4 new in `UpdateCheckerTest`). Verified live on both emulators: up-to-date path on phone and TV; on TV with the version faked to 0.6.0 the whole chain ran against the real repo — Available + release notes, download, Android's installer security dialog. See CHANGELOG and PLAN §21.
 
@@ -113,7 +115,9 @@ export JAVA_HOME="F:/Android/jdk17" GRADLE_USER_HOME="F:/Android/gradle-home"
 ## Next steps (in rough priority)
 
 1. **Confirm 0.6.7 with the owner:** open Settings → Check for updates on their phone/TV (the first update will trigger Android's once-only "allow installs from IPTV Whiz" prompt). Future releases then appear in-app; publishing a release to GitHub is enough.
-2. **Confirm the Redmi black-screen fix** with the owner.
+2. **Ask the owner about the FAST channels on the real TV (reported 2026-11-05):** which channels fail, and the small line under the failure card (it names the DRM system and reason). The 0.6.6 fix was verified on the emulator; a real box may fail for a reason the emulator can't reproduce (genuinely encrypted channels with no usable key in the playlist, or a codec the box refuses). No answer received yet.
+3. **Confirm the guide's 12-hour view with the owner** (0.6.8): Guide → time chips.
+4. **Confirm the Redmi black-screen fix** with the owner.
    - If video is still black, ask whether sound plays and whether the spinner shows.
    - The new quality chip is a first diagnostic: if it shows numbers while the screen is black, the decoder is running and the problem is the surface.
    - Consider adding the quality chip to the "Playback info" idea in the quick menu (state, codec, decoder, last error) to diagnose devices remotely.
