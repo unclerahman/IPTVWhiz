@@ -55,6 +55,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.iptvwhiz.app.R
+import com.iptvwhiz.app.data.ChannelRef
 import com.iptvwhiz.app.data.OrganizedPlaylist
 import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
@@ -92,7 +93,7 @@ private val GuideRowHeight = 76.dp
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
+fun TvGuideContent(onPlay: (Channel, group: String) -> Unit, current: ChannelRef? = null) {
     val vm = appViewModel { container, _ -> LiveViewModel(container) }
     val organized by vm.organized.collectAsStateWithLifecycle()
     val guide by vm.guide.collectAsStateWithLifecycle()
@@ -115,7 +116,9 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
     val scope = rememberCoroutineScope()
     val nowFocus = remember { FocusRequester() }
     var details by remember { mutableStateOf<Pair<Channel, ProgramSlot>?>(null) }
-    val listState = rememberLazyListState()
+    // From the player, the guide opens on the channel being watched.
+    val focusRow = remember(channels) { channels.indexOfFirst { it.ref == current }.coerceAtLeast(0) }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (focusRow - 1).coerceAtLeast(0))
 
     var gridHasFocus by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { nowFocus.requestFocusUntil({ gridHasFocus }) }
@@ -129,7 +132,7 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
                 onClick = {
                     scope.launch {
                         scroll.animateScrollTo(0)
-                        listState.scrollToItem(0)
+                        listState.scrollToItem((focusRow - 1).coerceAtLeast(0))
                         nowFocus.requestFocusWhenReady()
                     }
                 },
@@ -165,7 +168,7 @@ fun TvGuideContent(onPlay: (Channel, group: String) -> Unit) {
                                         val slot = block.slot
                                         if (onAir || slot == null) onPlay(channel, OrganizedPlaylist.ALL) else details = channel to slot
                                     },
-                                    modifier = if (index == 0 && onAir) Modifier.focusRequester(nowFocus) else Modifier,
+                                    modifier = if (index == focusRow && onAir) Modifier.focusRequester(nowFocus) else Modifier,
                                 )
                             }
                         }

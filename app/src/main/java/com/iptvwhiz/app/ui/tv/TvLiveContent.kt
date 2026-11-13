@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -263,6 +264,10 @@ internal fun TvChannelList(
         LazyListState(firstVisibleItemIndex = (start - 3).coerceAtLeast(0))
     }
     var listHasFocus by remember { mutableStateOf(false) }
+    // A fresh list per group. Reusing one LazyColumn across groups let focusRestorer try to restore a
+    // row of the previous group, and Compose crashed ("Release should only be called once") when ▶
+    // came back into the list after browsing groups; that crash was in 0.6.8 too.
+    key(listKey) {
     LazyColumn(
         state = listState,
         modifier = modifier
@@ -271,11 +276,6 @@ internal fun TvChannelList(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
-            val requester = when {
-                channel.stableKey == lastPlayedKey -> lastPlayedFocus
-                index == 0 -> firstChannelFocus
-                else -> null
-            }
             ChannelRow(
                 channel = channel,
                 selected = channel.ref == current,
@@ -285,10 +285,15 @@ internal fun TvChannelList(
                 subtitle = subtitle(channel),
                 onClick = { onPlay(channel) },
                 onLongClick = { onEdit(channel) },
-                modifier = (if (requester != null) Modifier.focusRequester(requester) else Modifier)
+                // The first row always carries firstChannelFocus, even when it is also the last played:
+                // focusRestorer falls back to it, and a requester with no row throws.
+                modifier = Modifier
+                    .then(if (channel.stableKey == lastPlayedKey) Modifier.focusRequester(lastPlayedFocus) else Modifier)
+                    .then(if (index == 0) Modifier.focusRequester(firstChannelFocus) else Modifier)
                     .onFocusChanged { if (it.hasFocus) onFocusChannel(channel) },
             )
         }
+    }
     }
     LaunchedEffect(Unit) {
         if (lastPlayedKey != null && channels.any { it.stableKey == lastPlayedKey }) {

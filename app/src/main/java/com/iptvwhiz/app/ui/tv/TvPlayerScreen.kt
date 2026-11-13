@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -159,6 +160,15 @@ fun TvPlayerScreen(onBack: () -> Unit) {
     // Back closes the list first; otherwise navigation pops the player as usual.
     BackHandler(enabled = listVisible) { listVisible = false }
     BackHandler(enabled = guideVisible) { guideVisible = false }
+    // Compose spends a Back press on moving focus out of a list or button before BackHandler sees it,
+    // so Back needed two presses on the panel, the guide and the error card. Take it first instead.
+    val onBackKey: () -> Unit = {
+        when {
+            guideVisible -> guideVisible = false
+            listVisible -> listVisible = false
+            else -> onBack()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -166,6 +176,11 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             .background(Color.Black)
             .focusRequester(rootFocus)
             .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Back) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyUp) onBackKey()
+                true
+            }
             .onKeyEvent { event ->
                 // While the list is open, the D-pad belongs to the list.
                 if (listVisible || guideVisible) return@onKeyEvent false
@@ -289,6 +304,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
                         vm.playFrom(key, channel)
                         guideVisible = false
                     },
+                    current = current?.ref,
                 )
             }
         }
