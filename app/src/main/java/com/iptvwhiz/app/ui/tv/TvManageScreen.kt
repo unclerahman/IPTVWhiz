@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -421,7 +421,7 @@ private fun ManageChannelRow(
             else -> null
         },
         trailingContent = if (isFavorite) {
-            { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
+            { Icon(Icons.Filled.Favorite, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
         } else {
             null
         },

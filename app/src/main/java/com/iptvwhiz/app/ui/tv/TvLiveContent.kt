@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +55,7 @@ import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.epg.NowNext
 import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.ChannelLogo
-import com.iptvwhiz.app.ui.common.HealthDot
+import com.iptvwhiz.app.ui.common.HealthBadge
 import com.iptvwhiz.app.ui.common.NoPlaylistText
 import com.iptvwhiz.app.ui.common.NoWatchlistsText
 import com.iptvwhiz.app.ui.common.ProgramProgress
@@ -289,6 +289,7 @@ private fun GroupRow(
 @Composable
 internal fun ChannelRow(
     channel: Channel,
+    selected: Boolean = false,
     programme: NowNext?,
     health: HealthStatus?,
     isFavorite: Boolean,
@@ -298,7 +299,7 @@ internal fun ChannelRow(
     modifier: Modifier = Modifier,
 ) {
     ListItem(
-        selected = false,
+        selected = selected,
         onClick = onClick,
         onLongClick = onLongClick,
         // The Menu key opens the same edit menu as a long press: not every remote makes long-press easy.
@@ -324,7 +325,12 @@ internal fun ChannelRow(
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                HealthDot(health, Modifier.padding(start = 10.dp))
+                HealthBadge(
+                    health,
+                    Modifier.padding(start = 10.dp),
+                    textStyle = MaterialTheme.typography.labelMedium,
+                    dotSize = 8.dp,
+                )
             }
         },
         // What's on beats the subtitle (group or playlist name).
@@ -334,7 +340,7 @@ internal fun ChannelRow(
             else -> null
         },
         trailingContent = if (isFavorite) {
-            { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
+            { Icon(Icons.Filled.Favorite, contentDescription = stringResource(R.string.label_favorite), modifier = Modifier.size(20.dp)) }
         } else {
             null
         },

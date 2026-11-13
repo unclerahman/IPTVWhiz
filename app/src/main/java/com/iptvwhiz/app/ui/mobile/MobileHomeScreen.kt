@@ -43,6 +43,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -61,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -388,46 +390,15 @@ internal fun MobileChannelList(
 ) {
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         itemsIndexed(channels, key = { _, it -> "${it.playlistId}|${it.stableKey}" }) { index, channel ->
-            val programme = guide[channel.ref]
-            val sub = subtitle(channel)
             Column {
-                ListItem(
-                    leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
-                    headlineContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                channel.number.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.widthIn(min = 24.dp),
-                            )
-                            Text(
-                                channel.name,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            HealthBadge(health[channel.ref], Modifier.padding(start = 6.dp))
-                            if (channel.ref in favorites) {
-                                Icon(
-                                    Icons.Filled.Favorite,
-                                    contentDescription = stringResource(R.string.label_favorite),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(start = 6.dp).size(16.dp),
-                                )
-                            }
-                        }
-                    },
-                    supportingContent = when {
-                        programme?.now != null -> { { MobileNowLine(programme) } }
-                        sub != null -> { { Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
-                        else -> null
-                    },
-                    modifier = Modifier.combinedClickable(
-                        onClick = { onPlay(channel) },
-                        onLongClick = { onLongPress(channel) },
-                    ),
+                MobileChannelRow(
+                    channel = channel,
+                    programme = guide[channel.ref],
+                    health = health[channel.ref],
+                    isFavorite = channel.ref in favorites,
+                    subtitle = subtitle(channel),
+                    onClick = { onPlay(channel) },
+                    onLongClick = { onLongPress(channel) },
                 )
                 if (index < channels.lastIndex) {
                     HorizontalDivider(
@@ -436,6 +407,77 @@ internal fun MobileChannelList(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The one channel row of the phone UI: number, logo, name, status, favourite heart and what's on now.
+ * Live TV, watchlists, search and the player's list all use it, so a channel looks the same everywhere.
+ * [isCurrent] marks the channel that is playing (accent bar and primary-coloured name).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun MobileChannelRow(
+    channel: Channel,
+    programme: NowNext?,
+    health: HealthStatus?,
+    isFavorite: Boolean,
+    subtitle: String?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    isCurrent: Boolean = false,
+) {
+    Box {
+        ListItem(
+            leadingContent = { ChannelLogo(channel.name, channel.logoUrl, size = 44.dp) },
+            headlineContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        channel.number.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.widthIn(min = 24.dp),
+                    )
+                    Text(
+                        channel.name,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium),
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    HealthBadge(health, Modifier.padding(start = 6.dp))
+                    if (isFavorite) {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = stringResource(R.string.label_favorite),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp),
+                        )
+                    }
+                }
+            },
+            supportingContent = when {
+                programme?.now != null -> { { MobileNowLine(programme) } }
+                subtitle != null -> { { Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                else -> null
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = if (isCurrent) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+            ),
+            modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        )
+        if (isCurrent) {
+            // Left accent bar: the playing channel is obvious without painting the whole row.
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 6.dp)
+                    .width(3.dp)
+                    .height(28.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)),
+            )
         }
     }
 }

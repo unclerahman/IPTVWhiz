@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -44,7 +45,12 @@ fun HealthDot(status: HealthStatus?, modifier: Modifier = Modifier, size: Dp = 1
  * noise, so [HealthStatus.Working] draws nothing.
  */
 @Composable
-fun HealthBadge(status: HealthStatus?, modifier: Modifier = Modifier) {
+fun HealthBadge(
+    status: HealthStatus?,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = MaterialTheme.typography.labelSmall,
+    dotSize: Dp = 6.dp,
+) {
     if (status == null || status == HealthStatus.Working) return
     val (color, label) = status.colorAndLabel()
     Row(
@@ -54,9 +60,9 @@ fun HealthBadge(status: HealthStatus?, modifier: Modifier = Modifier) {
             .padding(horizontal = 7.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(6.dp).background(color, CircleShape))
+        Box(Modifier.size(dotSize).background(color, CircleShape))
         Spacer(Modifier.width(4.dp))
-        Text(stringResource(label), style = MaterialTheme.typography.labelSmall, color = color)
+        Text(stringResource(label), style = textStyle, color = color)
     }
 }
 
