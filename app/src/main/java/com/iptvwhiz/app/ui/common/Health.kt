@@ -68,6 +68,14 @@ fun HealthBadge(
     }
 }
 
+/** One plain sentence on what an Offline or Blocked mark means; null when there is nothing to explain. */
+@Composable
+fun healthExplanation(status: HealthStatus?): String? = when (status) {
+    HealthStatus.Offline -> stringResource(R.string.health_offline_explained)
+    HealthStatus.Blocked -> stringResource(R.string.health_blocked_explained)
+    HealthStatus.Working, null -> null
+}
+
 private fun HealthStatus.colorAndLabel(): Pair<Color, Int> = when (this) {
     HealthStatus.Working -> Color(0xFF22C55E) to R.string.health_working
     HealthStatus.Offline -> Color(0xFFEF4444) to R.string.health_offline

@@ -53,8 +53,21 @@ class AppPrefs(context: Context) {
             prefs.edit().putInt(KEY_PARSER_VERSION, value).apply()
         }
 
+    /**
+     * True for the first [PLAYER_HINT_TIMES] times the TV player opens: after that the owner knows
+     * the keys, and the hint line under the channel banner is just clutter.
+     */
+    fun takePlayerHint(): Boolean {
+        val shown = prefs.getInt(KEY_PLAYER_HINTS, 0)
+        if (shown >= PLAYER_HINT_TIMES) return false
+        prefs.edit().putInt(KEY_PLAYER_HINTS, shown + 1).apply()
+        return true
+    }
+
     companion object {
         const val NONE = -1L
+        private const val PLAYER_HINT_TIMES = 3
+        private const val KEY_PLAYER_HINTS = "player_hints_shown"
         private const val KEY_SHOW_QUALITY = "show_quality"
         private const val KEY_HIDE_BLOCKED = "hide_blocked"
         private const val KEY_ACTIVE_PLAYLIST = "active_playlist"

@@ -313,7 +313,8 @@
     <string name="health_hide_offline">Hide %1$d offline</string>
     <string name="health_hide_all">Hide %1$d offline and blocked</string>
     <string name="health_dismiss">Keep all</string>
-    <string name="health_explained">Green works, red is offline, amber refuses this device (often blocked in your country).</string>
+    <string name="health_offline_explained">It didn\'t answer the last time it was tried. It may be back later.</string>
+    <string name="health_blocked_explained">The provider refused this device, often because of your country.</string>
 
     <string name="press_back_again">Press Back again to exit</string>
 </resources>

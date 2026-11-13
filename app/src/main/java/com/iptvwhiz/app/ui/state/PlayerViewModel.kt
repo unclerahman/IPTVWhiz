@@ -90,6 +90,9 @@ class PlayerViewModel(private val container: AppContainer, savedState: SavedStat
 
     fun toggleQuality() = prefs.setShowQuality(!prefs.showQuality.value)
 
+    /** Whether this player session shows the remote-key hint (first few sessions only). */
+    val showKeyHint: Boolean = prefs.takePlayerHint()
+
     init {
         // The player only measures while the overlay is on.
         viewModelScope.launch { prefs.showQuality.collect { livePlayer.setStatsEnabled(it) } }

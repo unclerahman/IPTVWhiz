@@ -89,6 +89,9 @@ class LiveViewModel(container: AppContainer) : ViewModel() {
 
     val edits = ChannelEdits(container, viewModelScope)
 
+    /** "Check channels" for the list on screen. */
+    val healthCheck = HealthCheck(container, viewModelScope)
+
     /** What's on now/next for every playlist's channels (watchlists mix playlists). */
     val guide: StateFlow<Map<ChannelRef, NowNext>> = repo.playlists
         .map { list -> list.map { it.id } }

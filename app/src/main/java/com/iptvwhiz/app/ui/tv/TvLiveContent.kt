@@ -85,6 +85,8 @@ fun TvLiveContent(
     onAddPlaylist: () -> Unit,
     watchlistsOnly: Boolean = false,
     groupWidth: Dp = 320.dp,
+    /** False in the player's panel, which stays compact. */
+    showHealthCheck: Boolean = true,
     current: ChannelRef? = null,
     queue: List<Channel>? = null,
     onFocusChannel: (Channel) -> Unit = {},
@@ -186,7 +188,10 @@ fun TvLiveContent(
             }
         }
         Spacer(Modifier.width(24.dp))
-        Box(Modifier.weight(1f).fillMaxHeight()) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            if (showHealthCheck && channels.isNotEmpty()) {
+                TvHealthBar(vm.healthCheck, channels, Modifier.padding(start = 12.dp, bottom = 8.dp))
+            }
             TvChannelList(
                 channels = if (selectedGroup == PlayerViewModel.QUEUE_KEY) queue.orEmpty() else channels,
                 guide = guide,

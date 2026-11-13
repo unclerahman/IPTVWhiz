@@ -16,6 +16,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.state.LiveViewModel
+import com.iptvwhiz.app.data.db.HealthStatus
+import com.iptvwhiz.app.ui.common.HealthBadge
+import com.iptvwhiz.app.ui.common.healthExplanation
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -135,6 +138,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
     // Browsing while watching: the same lists, guide and status as Live TV, starting on the list being watched.
     val browse = appViewModel { container, _ -> LiveViewModel(container) }
     LaunchedEffect(listKey) { browse.selectGroup(listKey) }
+    val health by browse.health.collectAsStateWithLifecycle()
     /** Full screen only: the channel panel over the video. */
     var browseOpen by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = browseOpen && landscape) { browseOpen = false }
@@ -171,6 +175,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
                     watchlistsOnly = false,
                     current = current?.ref,
                     queue = vm.queue,
+                    showHealthCheck = false,
                 )
             }
         }
@@ -269,7 +274,7 @@ fun MobilePlayerScreen(onBack: () -> Unit) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) {
                 video(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
             }
-            current?.let { NowPlaying(it, groupName, programme) }
+            current?.let { NowPlaying(it, groupName, programme, health[it.ref]) }
             HorizontalDivider()
             browser(Modifier.fillMaxWidth().weight(1f)) {}
         }
@@ -515,7 +520,7 @@ private fun LivePill() {
 }
 
 @Composable
-private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?) {
+private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?, health: HealthStatus?) {
     val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -547,6 +552,18 @@ private fun NowPlaying(channel: Channel, group: String?, programme: NowNext?) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            healthExplanation(health)?.let { explanation ->
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HealthBadge(health)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        explanation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (programme != null) {
                 val now = programme.now
                 if (now != null) {

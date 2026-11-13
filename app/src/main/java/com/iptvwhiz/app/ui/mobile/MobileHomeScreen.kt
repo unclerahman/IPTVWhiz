@@ -206,6 +206,8 @@ internal fun MobileBrowse(
     watchlistsOnly: Boolean,
     current: ChannelRef? = null,
     queue: List<Channel>? = null,
+    /** False under the player, which stays compact. */
+    showHealthCheck: Boolean = true,
 ) {
     val context = LocalContext.current
     val playlists by vm.playlists.collectAsStateWithLifecycle()
@@ -300,6 +302,9 @@ internal fun MobileBrowse(
                     )
                 }
             }
+        }
+        if (showHealthCheck && channels.isNotEmpty()) {
+            HealthBar(vm.healthCheck, channels, Modifier.padding(horizontal = 16.dp))
         }
         MobileChannelList(
             channels = channels,

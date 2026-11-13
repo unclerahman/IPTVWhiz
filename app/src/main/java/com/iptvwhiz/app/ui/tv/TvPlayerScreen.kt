@@ -65,6 +65,7 @@ import com.iptvwhiz.app.data.db.Channel
 import com.iptvwhiz.app.data.db.HealthStatus
 import com.iptvwhiz.app.data.ref
 import com.iptvwhiz.app.ui.common.HealthBadge
+import com.iptvwhiz.app.ui.common.healthExplanation
 import com.iptvwhiz.app.ui.state.LiveViewModel
 import com.iptvwhiz.app.ui.theme.TvSafeArea
 import androidx.compose.material.icons.Icons
@@ -250,7 +251,9 @@ fun TvPlayerScreen(onBack: () -> Unit) {
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            current?.let { InfoBanner(it, position = index + 1, total = channels.size, group = groupName, programme = programme) }
+            current?.let {
+                InfoBanner(it, position = index + 1, total = channels.size, group = groupName, programme = programme, showHint = vm.showKeyHint)
+            }
         }
 
         AnimatedVisibility(
@@ -273,6 +276,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
                         },
                         onAddPlaylist = {},
                         groupWidth = 200.dp,
+                        showHealthCheck = false,
                         current = current?.ref,
                         queue = vm.queue,
                         onFocusChannel = { previewed = it },
@@ -341,7 +345,7 @@ fun TvPlayerScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoBanner(channel: Channel, position: Int, total: Int, group: String?, programme: NowNext?) {
+private fun InfoBanner(channel: Channel, position: Int, total: Int, group: String?, programme: NowNext?, showHint: Boolean) {
     val context = LocalContext.current
     Box(
         Modifier
@@ -400,7 +404,7 @@ private fun InfoBanner(channel: Channel, position: Int, total: Int, group: Strin
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White.copy(alpha = 0.7f),
                 )
-                Text(
+                if (showHint) Text(
                     stringResource(R.string.player_hint_tv),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.5f),
@@ -464,6 +468,10 @@ private fun ChannelPreview(
                     }
                 }
             }
+        }
+        healthExplanation(health)?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.7f))
         }
         val now = programme?.now
         Spacer(Modifier.height(16.dp))
